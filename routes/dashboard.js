@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
+const User = require('../models/User');
 const Project = require('../models/Project');
 const passport = require('passport');
 
@@ -20,11 +21,22 @@ router.get('/', async (req, res) => {
     }
 });
 
-router.get('/projects', async (req, res) => {
+router.get('/userprojects/:userId', async (req, res) => {
     try {
-        const userId = req.query.userId; 
-        const projects = await Project.find({ users: userId }).populate('users');
-        res.status(200).json(projects);
+       const user = await User.findById(req.params.userId);
+       if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+       }
+
+       const projects = await Project.find({ users: req.params.userId });
+
+       const userWithProjects = {
+        ...user.toObject(),
+        project: projects
+       }
+
+       res.status(200).json(userWithProjects);
+
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch projects' });
     }
