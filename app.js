@@ -36,7 +36,7 @@ mongoose.connect(process.env.MONGO_URI)
 
 // Test route
 app.get('/', (req, res) => {
-  res.send('<a href="/auth/google">Auth</a>');
+  res.send('<a href="/dashboard">dashboard</a>');
 });
 
 // Start server
