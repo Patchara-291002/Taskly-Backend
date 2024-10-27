@@ -21,26 +21,26 @@ router.get('/', async (req, res) => {
     }
 });
 
-router.get('/userprojects/:userId', async (req, res) => {
-    try {
-       const user = await User.findById(req.params.userId);
-       if (!user) {
-        return res.status(404).json({ error: 'User not found' });
-       }
+// router.get('/userprojects/:userId', async (req, res) => {
+//     try {
+//        const user = await User.findById(req.params.userId);
+//        if (!user) {
+//         return res.status(404).json({ error: 'User not found' });
+//        }
 
-       const projects = await Project.find({ users: req.params.userId });
+//        const projects = await Project.find({ users: req.params.userId });
 
-       const userWithProjects = {
-        ...user.toObject(),
-        project: projects
-       }
+//        const userWithProjects = {
+//         ...user.toObject(),
+//         project: projects
+//        }
 
-       res.status(200).json(userWithProjects);
+//        res.status(200).json(userWithProjects);
 
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to fetch projects' });
-    }
-});
+//     } catch (error) {
+//         res.status(500).json({ error: 'Failed to fetch projects' });
+//     }
+// });
 
 
 
