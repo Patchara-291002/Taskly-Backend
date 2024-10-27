@@ -3,9 +3,11 @@ const mongoose = require('mongoose');
 const session = require('express-session');
 const passport = require('passport');
 const cookieParser = require('cookie-parser');
+const dotenv = require('dotenv');
 
-require('dotenv').config();
-require('./config/passport');
+dotenv.config();
+
+require('./src/config/passport');
 
 const app = express();
 
@@ -23,20 +25,18 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
-// Routes
-app.use('/auth', require('./routes/auth'));
-app.use('/project', require('./routes/project'));
-app.use('/dashboard',require('./routes/dashboard'));
-app.use('/project-task', require('./routes/project_task'));
-
 // DB Connection
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log('MongoDB connected'))
   .catch((err) => console.log(err));
 
+// Routes
+app.use('/auth', require('./src/routes/auth'));
+app.use('/project', require('./src/routes/project'));
+
 // Test route
 app.get('/', (req, res) => {
-  res.send('<a href="/dashboard">dashboard</a>');
+  res.send('Welcome to the Project Management API');
 });
 
 // Start server
