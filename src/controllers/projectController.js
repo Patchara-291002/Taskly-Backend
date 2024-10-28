@@ -72,3 +72,60 @@ exports.deleteProject = async (req, res) => {
         res.status(500).json({ message: 'Failed to delete project', error });
     }
 };
+
+// find all projects by id
+exports.getProjectByUserId = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const projects = await Project.find({ 'users.userId': id }).populate('users.userId', 'displayName profilePicture');
+
+        res.status(200).json(projects);
+    } catch (error) {
+        res.status(500).json({ message: 'Failed to fetch projects', error });
+    }
+};
+
+// find project by projectId
+exports.getProjectById = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const project = await Project.findById( id ).populate({
+            path: 'users.userId',
+            select: 'displayName profilePicture'
+        });
+
+        if (!project) {
+            return res.status(404).json({ message: 'Project not found' })
+        }
+
+        res.status(200).json(project);
+    } catch (error) {
+        return res.status(500).json({ message: 'Failed to fetch the project', error })
+    }
+};
+
+exports.addUserToProject = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { userId, role } = req.body;
+
+        const updateProject = await Project.findByIdAndUpdate(
+            id,
+            {
+                $push: { users: { userId, role } },
+                updateAt: Date.now()
+            },
+            { new: true } // return new value affter updated
+        )
+
+        if (!updateProject) {
+            return res.status(404).json({ message: 'Project not found' });
+        }
+
+        res.status(200).json(updateProject);
+    } catch (error) {
+        return res.status(500).json({ message: 'Failed to add user to project', error })
+    }
+};
