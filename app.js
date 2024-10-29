@@ -33,6 +33,8 @@ mongoose.connect(process.env.MONGO_URI)
 // Routes
 app.use('/auth', require('./src/routes/auth'));
 app.use('/project', require('./src/routes/project'));
+app.use('/status', require('./src/routes/status'));
+app.use('/task', require('./src/routes/task'))
 
 // Test route
 app.get('/', (req, res) => {

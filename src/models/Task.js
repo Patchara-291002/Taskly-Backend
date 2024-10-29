@@ -9,7 +9,7 @@
         color: { type: String },
         startDate: { type: Date, require: true },
         dueDate: { type: Date, required: true },
-        dueTime: { type: String, require: true },
+        dueTime: { type: String,},
         assignees: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }]
     });
 

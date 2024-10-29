@@ -1,15 +1,14 @@
 const Project = require('../models/Project');
-const User = require('../models/User');
+const Status = require('../models/Status');
+const Task = require('../models/Task');
 
 exports.getAllProject = async (req, res) => {
     try {
-        // ดึงข้อมูลโปรเจกต์ทั้งหมด พร้อม populate ฟิลด์ userId ที่อยู่ใน users array
         const projects = await Project.find().populate({
-            path: 'users.userId', // ระบุเส้นทางที่ต้องการ populate คือ users.userId
-            select: 'displayName profilePicture', // เลือกแค่ฟิลด์ที่ต้องการจากโมเดล User
+            path: 'users.userId',
+            select: 'displayName profilePicture'
         });
 
-        // ส่งข้อมูลโปรเจกต์กลับไปในรูปแบบ JSON
         res.status(200).json(projects);
     } catch (error) {
         res.status(500).json({ message: 'Failed to fetch projects', error });
@@ -73,7 +72,6 @@ exports.deleteProject = async (req, res) => {
     }
 };
 
-// find all projects by id
 exports.getProjectByUserId = async (req, res) => {
     try {
         const { id } = req.params;
@@ -86,23 +84,39 @@ exports.getProjectByUserId = async (req, res) => {
     }
 };
 
-// find project by projectId
 exports.getProjectById = async (req, res) => {
     try {
         const { id } = req.params;
 
-        const project = await Project.findById( id ).populate({
+        const project = await Project.findById(id).populate({
             path: 'users.userId',
             select: 'displayName profilePicture'
         });
 
         if (!project) {
-            return res.status(404).json({ message: 'Project not found' })
+            return res.status(404).json({ message: 'Project not found' });
         }
 
-        res.status(200).json(project);
+        const statuses = await Status.find({ projectId: id });
+
+        const boardWithTasks = await Promise.all(
+            statuses.map(async (status) => {
+                const tasks = await Task.find({ statusId: status._id });
+                return {
+                    ...status.toObject(),
+                    tasks: tasks  
+                };
+            })
+        );
+
+        const projectWithBoard = {
+            ...project.toObject(),
+            status: boardWithTasks
+        };
+
+        res.status(200).json(projectWithBoard);
     } catch (error) {
-        return res.status(500).json({ message: 'Failed to fetch the project', error })
+        return res.status(500).json({ message: 'Failed to fetch the project', error });
     }
 };
 
