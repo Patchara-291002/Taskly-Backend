@@ -16,15 +16,12 @@ exports.login = (req, res) => {
       res.clearCookie('jwtToken'); // ถ้า token ผิด ให้ลบออก
     }
   }
-  res.redirect('/auth/google'); // ถ้าไม่มี token ให้ไปที่ Google authentication
 };
 
-// ฟังก์ชัน callback หลังจากที่ผู้ใช้ผ่าน Google authentication แล้ว
 exports.googleCallback = (req, res) => {
-  // สร้าง JWT token และตั้งค่า cookie ให้กับผู้ใช้
   const token = jwt.sign({ id: req.user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
-  res.cookie('jwtToken', token, { httpOnly: true, secure: false, maxAge: 30 * 24 * 60 * 60 * 1000 });
-  res.redirect('/'); // ไปที่ dashboard หลังจากตั้งค่า token แล้ว
+  res.cookie('jwtToken', token, { httpOnly: true, secure: true, maxAge: 3600000 });
+  res.redirect(`http://localhost:3001?userId=${req.user._id}`);
 };
 
 // ฟังก์ชัน logout ที่ลบ cookie และยกเลิกการ login ของผู้ใช้

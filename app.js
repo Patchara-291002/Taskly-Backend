@@ -4,6 +4,7 @@ const session = require('express-session');
 const passport = require('passport');
 const cookieParser = require('cookie-parser');
 const dotenv = require('dotenv');
+const cors = require('cors');
 
 dotenv.config();
 
@@ -13,6 +14,10 @@ const app = express();
 
 app.use(express.json());
 app.use(cookieParser());
+app.use(cors({
+  origin: 'http://localhost:3001', 
+  credentials: true 
+}));
 
 // Session setup
 app.use(session({
@@ -35,6 +40,7 @@ app.use('/auth', require('./src/routes/auth'));
 app.use('/project', require('./src/routes/project'));
 app.use('/status', require('./src/routes/status'));
 app.use('/task', require('./src/routes/task'))
+app.use('/user', require('./src/routes/user'));
 
 // Test route
 app.get('/', (req, res) => {
