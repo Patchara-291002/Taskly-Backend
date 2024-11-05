@@ -17,12 +17,14 @@ exports.getAllProject = async (req, res) => {
 
 exports.createProject = async (req, res) => {
     try {
-        const { projectName } = req.body;
+        const { projectName, startDate, dueDate } = req.body;
         const userId = req.userId;
 
         const newProject = new Project({
             projectName,
-            users: [{ userId, role: 'owner' }]
+            users: [{ userId, role: 'owner' }],
+            startDate,
+            dueDate
         });
 
         await newProject.save();
@@ -38,11 +40,11 @@ exports.createProject = async (req, res) => {
 exports.updateProject = async (req, res) => {
     try {
         const { id } = req.params;
-        const { projectName } = req.body
+        const { projectName, startDate, dueDate } = req.body
 
         const updateProject = await Project.findByIdAndUpdate(
             id,
-            { projectName, updatedAt: Date.now() },
+            { projectName, startDate, dueDate, updatedAt: Date.now() },
             { new: true }
         );
 
@@ -78,11 +80,41 @@ exports.getProjectByUserId = async (req, res) => {
 
         const projects = await Project.find({ 'users.userId': id }).populate('users.userId', 'displayName profilePicture');
 
-        res.status(200).json(projects);
+        const projectsWithProgress = await Promise.all(projects.map(async (project) => {
+            const statuses = await Status.find({ projectId: project._id });
+
+            const doneStatus = statuses.find(status => status.statusName === 'Done');
+            const statusIds = statuses.map(status => status._id);
+
+            const tasks = await Task.find({ statusId: { $in: statusIds } });
+
+            let totalWeight = 0;
+            let completedWeight = 0;
+
+            tasks.forEach(task => {
+                const priority = task.priority || 1;
+                totalWeight += priority;
+
+                // Check if task status matches the "Done" status
+                if (doneStatus && task.statusId.equals(doneStatus._id)) {
+                    completedWeight += priority;
+                }
+            });
+
+            const progress = totalWeight > 0 ? (completedWeight / totalWeight) * 100 : 0;
+
+            return {
+                ...project.toObject(),
+                progress: Math.round(progress),
+            };
+        }));
+    
+        res.status(200).json(projectsWithProgress);
     } catch (error) {
         res.status(500).json({ message: 'Failed to fetch projects', error });
     }
 };
+
 
 exports.getProjectById = async (req, res) => {
     try {

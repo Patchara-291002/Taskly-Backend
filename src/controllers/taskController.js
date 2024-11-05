@@ -3,7 +3,7 @@ const Status = require('../models/Status');
 
 exports.createTask = async (req, res) => {
     try {
-        const { statusId, taskName, detail, tag, priority, color, startDate, dueDate, dueTime, assignees } = req.body;
+        const { statusId, taskName, detail, tag, priority, color, startDate, dueDate, statTime, dueTime, assignees } = req.body;
 
         const status = await Status.findById(statusId);
         if (!status) {
@@ -19,6 +19,7 @@ exports.createTask = async (req, res) => {
             color,
             startDate,
             dueDate,
+            statTime,
             dueTime,
             assignees
         });

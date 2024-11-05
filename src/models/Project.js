@@ -9,7 +9,10 @@ const projectSchema = new mongoose.Schema(
         role: { type: String, required: true },
         _id: false
       }
-    ]
+    ],
+    startDate: { type: String },
+    dueDate: { type: String },
+    percent: { type: Number }
   },
   {
     timestamps: { createdAt: 'createdAt', updateAt: 'updatedAt' }
