@@ -129,11 +129,15 @@ exports.getProjectById = async (req, res) => {
             return res.status(404).json({ message: 'Project not found' });
         }
 
-        const statuses = await Status.find({ projectId: id });
+        const statuses = await Status.find({ projectId: id }).sort({ position: 1 });
 
         const boardWithTasks = await Promise.all(
             statuses.map(async (status) => {
-                const tasks = await Task.find({ statusId: status._id });
+                const tasks = await Task.find({ statusId: status._id })
+                .populate({
+                    path: 'assignees',
+                    select: 'displayName profilePicture'
+                })
                 return {
                     ...status.toObject(),
                     tasks: tasks  

@@ -9,4 +9,6 @@ router.put('/update/:id', authenticate, statusController.updateStatus);
 
 router.delete('/delete/:id', authenticate, statusController.deleteStatus);
 
+router.put('/update/position/:id', authenticate, statusController.updateStatusPosition);
+
 module.exports = router;

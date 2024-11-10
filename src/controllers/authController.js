@@ -19,9 +19,22 @@ exports.login = (req, res) => {
 };
 
 exports.googleCallback = (req, res) => {
-  const token = jwt.sign({ id: req.user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
-  res.cookie('jwtToken', token, { httpOnly: true, secure: true, maxAge: 3600000 });
-  res.redirect(`http://localhost:3001?userId=${req.user._id}`);
+  // const token = jwt.sign({ id: req.user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+  // res.cookie('jwtToken', token, { httpOnly: true, secure: true, maxAge: 3600000 });
+  // res.redirect(`http://localhost:3001?userId=${req.user._id}`);
+  try {
+    if (!req.user) {
+      console.error("Error: No user found in request.");
+      return res.status(500).json({ message: "Authentication failed" });
+    }
+    const token = jwt.sign({ id: req.user._id }, process.env.JWT_SECRET, { expiresIn: '3h' })
+    const hour = 3600000 * 3
+    res.cookie('jwtToken', token, { httpOnly: true, secure: true, maxAge: hour });
+    res.redirect(`http://localhost:3001?userId=${req.user._id}`);
+  } catch (error) {
+    console.error("Error in googleCallback:", error);
+    res.status(500).json({ message: "Internal Server Error", error: error.message });
+  }
 };
 
 // ฟังก์ชัน logout ที่ลบ cookie และยกเลิกการ login ของผู้ใช้

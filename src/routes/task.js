@@ -5,4 +5,6 @@ const authenticate = require('../middleware/authenticate');
 
 router.post('/create', authenticate, taskController.createTask);
 
+router.put('/update/status/:id', authenticate, taskController.updateTaskStatus);
+
 module.exports = router;

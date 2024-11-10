@@ -30,3 +30,20 @@ exports.createTask = async (req, res) => {
         return res.status(500).json({ message: 'Failed to create task', error });
     }
 }
+
+exports.updateTaskStatus = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { statusId } = req.body;
+
+        const task = await Task.findByIdAndUpdate(id, { statusId }, { new: true });
+        
+        if (!task) {
+            return res.status(404).json({ message: 'Task not found' });
+        }
+
+        res.status(200).json(task);
+    } catch (error) {
+        res.status(500).json({ message: 'Failed to update task status', error });
+    }
+};
