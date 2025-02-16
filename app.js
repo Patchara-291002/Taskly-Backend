@@ -42,6 +42,7 @@ app.use('/status', require('./src/routes/status'));
 app.use('/task', require('./src/routes/task'))
 app.use('/user', require('./src/routes/user'));
 app.use('/course', require('./src/routes/course'));
+app.use('/assignment', require('./src/routes/assignment'));
 
 // Test route
 app.get('/', (req, res) => {
