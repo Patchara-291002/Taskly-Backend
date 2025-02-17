@@ -3,7 +3,7 @@ const router = express.Router();
 const projectController = require('../controllers/projectController');
 const authenticate = require('../middleware/authenticate');
 
-router.get('/', authenticate, projectController.getAllProject);
+// router.get('/', authenticate, projectController.getAllProject);
 
 // create project
 router.post('/create', authenticate, projectController.createProject);
@@ -15,7 +15,7 @@ router.put('/update/:id', authenticate, projectController.updateProject);
 router.delete('/delete/:id', authenticate, projectController.deleteProject);
 
 // get project by userId
-router.get('/user/:id', authenticate, projectController.getProjectByUserId);
+router.get('/', authenticate, projectController.getProjectByUserId);
 
 // get project by projectId
 router.get('/:id', authenticate, projectController.getProjectById);
