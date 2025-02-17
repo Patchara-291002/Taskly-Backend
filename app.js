@@ -43,6 +43,7 @@ app.use('/task', require('./src/routes/task'))
 app.use('/user', require('./src/routes/user'));
 app.use('/course', require('./src/routes/course'));
 app.use('/assignment', require('./src/routes/assignment'));
+app.use('/upload', require('./src/routes/upload'));
 
 // Test route
 app.get('/', (req, res) => {

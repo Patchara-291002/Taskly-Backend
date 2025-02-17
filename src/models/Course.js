@@ -6,8 +6,9 @@ const courseSchema = new mongoose.Schema(
         courseColor: { type: String },
         instructorName: { type: String },
         location: { type: String },
-        startTime: { type: Date },
-        endTime: { type: Date },
+        day: { type: String },
+        startTime: { type: String },
+        endTime: { type: String },
         links: [
             {
                 linkName: { type: String },

@@ -1,10 +1,21 @@
 const Course = require('../models/Course');
+const Assignment = require('../models/Assignment');
 
 exports.getAllCourses = async (req, res) => {
     try {
         const userId = req.userId;
         const courses = await Course.find({ userId }).populate('userId');
-        res.status(200).json(courses);
+
+        const coursesWithAssignmentCount = await Promise.all(
+            courses.map(async course => {
+              const assignmentCount = await Assignment.countDocuments({ courseId: course._id });
+              const courseObj = course.toObject();
+              courseObj.Assignment = assignmentCount; 
+              return courseObj;
+            })
+          );
+
+        res.status(200).json(coursesWithAssignmentCount);
     } catch (error) {
         res.status(500).json({ message: 'Error fetching courses', error });
     }
@@ -18,6 +29,7 @@ exports.createCourse = async (req, res) => {
             courseColor,
             instructorName,
             location,
+            day,
             startTime,
             endTime,
             links,
@@ -30,6 +42,7 @@ exports.createCourse = async (req, res) => {
             courseColor,
             instructorName,
             location,
+            day,
             startTime,
             endTime,
             links,

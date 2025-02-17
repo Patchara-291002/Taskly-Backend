@@ -6,8 +6,19 @@ const assignmentSchema = new mongoose.Schema(
         description: { type: String },
         status: { type: String },
         startDate: { type: Date },
-        endDate: { type: Date }, 
+        endDate: { type: Date },
         userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+        links: [
+            {
+              linkName: { type: String },
+              linkType: { 
+                type: String,
+                enum: ['link', 'image', 'file'],
+                default: 'link'
+              },
+              linkAddress: { type: String },
+            }
+          ]
     },
     {
         timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' }
