@@ -19,7 +19,6 @@ exports.createAssignment = async (req, res) => {
             startDate,
             endDate,
             userId: req.userId,
-            // รับ links ที่ส่งมาจาก client (อาจเป็น array ของ object ที่มี linkName, linkType, linkAddress)
             links: links || []
         });
 
@@ -148,11 +147,10 @@ exports.addFileToAssignment = async (req, res) => {
 
 exports.addImageToAssignment = async (req, res) => {
     try {
-        const { id } = req.params; // assignment id
+        const { id } = req.params;
         if (!req.file) {
             return res.status(400).json({ message: 'No image uploaded' });
         }
-
         const linkName = req.body.linkName || req.file.originalname;
         const linkAddress = req.file.location;
         const linkType = 'image';

@@ -13,12 +13,12 @@ const assignmentSchema = new mongoose.Schema(
               linkName: { type: String },
               linkType: { 
                 type: String,
-                enum: ['link', 'image', 'file'],
+                enum: ['link', 'file'],
                 default: 'link'
               },
               linkAddress: { type: String },
             }
-          ]
+        ]
     },
     {
         timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' }
