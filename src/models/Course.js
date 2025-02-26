@@ -10,10 +10,11 @@ const courseSchema = new mongoose.Schema(
         day: { type: String },
         startTime: { type: String },
         endTime: { type: String },
-        links: [
+        contents: [
             {
-              linkName: { type: String },
-              linkAddress: { type: String },
+              title: { type: String },
+              content: { type: String },
+              isLink: { type: Boolean, default: false }
             }
         ],
         files: [

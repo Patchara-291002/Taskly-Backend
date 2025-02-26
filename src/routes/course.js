@@ -16,8 +16,8 @@ router.post(
     uploadController.uploadFile,
     courseController.addFileToCourse
 );
-router.post('/upload-link/:id', authenticate, courseController.addLinkToCourse);
-router.delete('/delete-link/:id/:linkId', authenticate, courseController.deleteLinkFromCourse);
+router.post('/create-content/:id', authenticate, courseController.addContentToCourse);
+router.delete('/delete-content/:id/:contentId', authenticate, courseController.deleteContentFromCourse);
 router.delete('/delete-file/:id/:fileId', authenticate, courseController.deleteFileFromCourse);
 
 module.exports = router;

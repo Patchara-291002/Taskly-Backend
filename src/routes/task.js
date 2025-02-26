@@ -7,4 +7,6 @@ router.post('/create', authenticate, taskController.createTask);
 
 router.put('/update/status/:id', authenticate, taskController.updateTaskStatus);
 
+router.put('/update/:id', authenticate, taskController.updateTask);
+
 module.exports = router;

@@ -9,9 +9,7 @@ exports.getAllCourses = async (req, res) => {
         const coursesWithAssignmentCount = await Promise.all(
             courses.map(async course => {
                 const assignmentCount = await Assignment.countDocuments({ courseId: course._id });
-                const courseObj = course.toObject();
-                courseObj.Assignment = assignmentCount;
-                return courseObj;
+                return { ...course.toObject(), Assignment: assignmentCount };
             })
         );
 
@@ -23,48 +21,28 @@ exports.getAllCourses = async (req, res) => {
 
 exports.createCourse = async (req, res) => {
     try {
-        const {
-            courseName,
-            courseCode,
-            courseColor,
-            instructorName,
-            location,
-            day,
-            startTime,
-            endTime,
-            links,
-        } = req.body
+        const { courseName } = req.body;
         const userId = req.userId;
 
-        const newCourse = new Course({
-            courseName,
-            courseCode,
-            courseColor,
-            instructorName,
-            location,
-            day,
-            startTime,
-            endTime,
-            links: links || [],
-            userId
-        })
+        const newCourse = new Course({ courseName, userId });
         await newCourse.save();
 
         res.status(201).json(newCourse);
     } catch (error) {
         res.status(500).json({ message: 'Error creating course', error });
     }
-}
+};
 
 exports.updateCourse = async (req, res) => {
     try {
         const { id } = req.params;
         const updatedData = req.body;
-        // Optionally: เช็คว่าผู้ใช้งานที่ล็อกอินเป็นเจ้าของ course หรือมีสิทธิ์แก้ไข
+
         const updatedCourse = await Course.findByIdAndUpdate(id, updatedData, { new: true });
         if (!updatedCourse) {
             return res.status(404).json({ message: 'Course not found' });
         }
+
         res.status(200).json(updatedCourse);
     } catch (error) {
         res.status(500).json({ message: 'Error updating course', error });
@@ -74,7 +52,6 @@ exports.updateCourse = async (req, res) => {
 exports.deleteCourse = async (req, res) => {
     try {
         const { id } = req.params;
-        // Optionally: เช็คสิทธิ์ก่อนลบ
         const deletedCourse = await Course.findByIdAndDelete(id);
         if (!deletedCourse) {
             return res.status(404).json({ message: 'Course not found' });
@@ -84,7 +61,6 @@ exports.deleteCourse = async (req, res) => {
         res.status(500).json({ message: 'Error deleting course', error });
     }
 };
-
 
 exports.fetchCourseByCourseId = async (req, res) => {
     try {
@@ -96,10 +72,7 @@ exports.fetchCourseByCourseId = async (req, res) => {
         }
 
         const assignments = await Assignment.find({ courseId: id });
-        const courseObj = course.toObject();
-        courseObj.Assignments = assignments;
-
-        res.status(200).json(courseObj);
+        res.status(200).json({ ...course.toObject(), Assignments: assignments });
     } catch (error) {
         res.status(500).json({ message: 'Error fetching course', error });
     }
@@ -123,11 +96,7 @@ exports.addFileToCourse = async (req, res) => {
             return res.status(403).json({ message: 'Unauthorized to add file to this course' });
         }
 
-        course.files.push({
-            fileName,
-            fileAddress,
-        });
-
+        course.files.push({ fileName, fileAddress });
         await course.save();
         res.status(200).json({ message: 'File added successfully', course });
     } catch (error) {
@@ -135,79 +104,71 @@ exports.addFileToCourse = async (req, res) => {
     }
 };
 
-exports.addLinkToCourse = async (req, res) => {
+exports.addContentToCourse = async (req, res) => {
     try {
         const { id } = req.params;
-        const { linkName, linkAddress } = req.body;
 
-        const course = await Course.findById(id);
-        if (!course) {
-            return res.status(404).json({ message: 'Assignment not found' });
-        }
-        if (course.userId.toString() !== req.userId) {
-            return res.status(403).json({ message: 'Unauthorized to add link to this assignment' });
-        }
-
-        course.links.push({
-            linkName,
-            linkType: "link",
-            linkAddress,
-        });
-
-        await course.save();
-        res.status(200).json({ message: 'Link added successfully', course });
-    } catch (error) {
-        res.status(500).json({ message: 'Error adding link to assignment', error });
-    }
-};
-
-exports.deleteLinkFromCourse = async (req, res) => {
-    try {
-        // รับ course id และ link id จาก req.params
-        const { id, linkId } = req.params;
-
-        // ค้นหา course ตาม id
         const course = await Course.findById(id);
         if (!course) {
             return res.status(404).json({ message: 'Course not found' });
         }
-
-        // ตรวจสอบสิทธิ์ผู้ใช้ (ถ้าใน Course model มี field userId)
-        if (course.userId && course.userId.toString() !== req.userId) {
-            return res.status(403).json({ message: 'Unauthorized to delete link from this course' });
+        if (course.userId.toString() !== req.userId) {
+            return res.status(403).json({ message: 'Unauthorized to add content to this course' });
         }
 
-        // ลบ link ที่มี _id ตรงกับ linkId ออกจาก array links
-        course.links.pull({ _id: linkId });
+        const defaultContent = {
+            title: "Empty",
+            content: "Empty",
+            isLink: false
+        };
+
+        course.contents.push(defaultContent);
         await course.save();
 
-        res.status(200).json({ message: 'Link deleted successfully', course });
+        res.status(200).json({ message: 'Content added successfully', course });
     } catch (error) {
-        res.status(500).json({ message: 'Error deleting link from course', error });
+        res.status(500).json({ message: 'Error adding content to course', error });
+    }
+};
+
+
+exports.deleteContentFromCourse = async (req, res) => {
+    try {
+        const { id, contentId } = req.params;
+
+        const course = await Course.findById(id);
+        if (!course) {
+            return res.status(404).json({ message: 'Course not found' });
+        }
+        if (course.userId.toString() !== req.userId) {
+            return res.status(403).json({ message: 'Unauthorized to delete content from this course' });
+        }
+
+        course.contents.pull({ _id: contentId });
+        await course.save();
+
+        res.status(200).json({ message: 'Content deleted successfully', course });
+    } catch (error) {
+        res.status(500).json({ message: 'Error deleting content from course', error });
     }
 };
 
 exports.deleteFileFromCourse = async (req, res) => {
     try {
-      const { id, fileId } = req.params; // id = course id, fileId = _id ของไฟล์ที่ต้องการลบ
-  
-      // ค้นหา course ตาม id
-      const course = await Course.findById(id);
-      if (!course) {
-        return res.status(404).json({ message: 'Course not found' });
-      }
-  
-      // ตรวจสอบสิทธิ์ผู้ใช้ ว่าคุณเป็นเจ้าของ course นี้หรือไม่
-      if (course.userId.toString() !== req.userId) {
-        return res.status(403).json({ message: 'Unauthorized to delete file from this course' });
-      }
-  
-      // ลบไฟล์ที่มี _id ตรงกับ fileId จาก array files
-      course.files.pull({ _id: fileId });
-  
-      await course.save();
-      res.status(200).json({ message: 'File deleted successfully', course });
+        const { id, fileId } = req.params;
+
+        const course = await Course.findById(id);
+        if (!course) {
+            return res.status(404).json({ message: 'Course not found' });
+        }
+        if (course.userId.toString() !== req.userId) {
+            return res.status(403).json({ message: 'Unauthorized to delete file from this course' });
+        }
+
+        course.files.pull({ _id: fileId });
+        await course.save();
+        res.status(200).json({ message: 'File deleted successfully', course });
     } catch (error) {
-      res.status(500).json({ message: 'Error deleting file from course', error });
+        res.status(500).json({ message: 'Error deleting file from course', error });
     }
-  };
+};

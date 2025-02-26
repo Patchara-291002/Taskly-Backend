@@ -1,14 +1,15 @@
-const mongoose = require('mongoose')
+const mongoose = require('mongoose');
 
 const statusSchema = new mongoose.Schema(
     {
-        projectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Project', require: true },
-        statusName: { type: String, require: true },
+        projectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Project', required: true },
+        statusName: { type: String, required: true },
         color: { type: String },
         position: { type: Number, required: true },
+        isDone: { type: Boolean, default: false }
     },
     {
-        timestamps: { createdAt: 'createAt', updatedAt: 'updateAt' }
+        timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' }
     }
 );
 
