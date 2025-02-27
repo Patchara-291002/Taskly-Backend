@@ -9,24 +9,38 @@ exports.createProject = async (req, res) => {
         const { projectName, startDate, dueDate } = req.body;
         const userId = req.userId;
 
+        // ✅ ตรวจสอบ startDate และ dueDate
         const projectStartDate = new Date(startDate).toISOString();
         const projectDueDate = new Date(dueDate).toISOString();
 
+        // ✅ สร้าง Project ใหม่
         const newProject = new Project({
             projectName,
-            users: [{ userId, role: 'owner' }],
+            users: [{ userId, role: "owner" }],
             startDate: projectStartDate,
             dueDate: projectDueDate,
             contents: Array(5).fill({ title: "Empty", content: "Empty", isLink: false }),
-            roles: [{ roleId: new mongoose.Types.ObjectId(), name: "Default role", color: "#D6D6D6" }]
+            roles: [{ roleId: new mongoose.Types.ObjectId(), name: "None", color: "#D6D6D6" }]
         });
 
         await newProject.save();
 
-        res.status(201).json(newProject);
+        // ✅ กำหนดสถานะเริ่มต้นของโปรเจค
+        const statusData = [
+            { statusName: "Todo", color: "#FF5733", position: 1, isDone: false },
+            { statusName: "Doing", color: "#33FF57", position: 2, isDone: false },
+            { statusName: "Done", color: "#3357FF", position: 3, isDone: true } 
+        ];
+
+        // ✅ สร้าง Status ในฐานข้อมูล
+        const statuses = await Status.insertMany(
+            statusData.map((s) => ({ ...s, projectId: newProject._id }))
+        );
+
+        res.status(201).json({ ...newProject.toObject(), statuses });
     } catch (error) {
-        console.error("❌ Error creating project:", error); // ✅ ดู Error
-        res.status(500).json({ message: 'Error creating project', error: error.message });
+        console.error("❌ Error creating project:", error);
+        res.status(500).json({ message: "Error creating project", error: error.message });
     }
 };
 

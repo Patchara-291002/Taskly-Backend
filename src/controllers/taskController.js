@@ -100,3 +100,44 @@ exports.updateTask = async (req, res) => {
         res.status(500).json({ message: 'Failed to update task', error: error.message });
     }
 };
+
+exports.getTaskById = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        // ✅ ดึง Task พร้อมข้อมูลพื้นฐาน
+        const task = await Task.findById(id);
+        if (!task) {
+            return res.status(404).json({ message: "Task not found" });
+        }
+
+        let roleOptions = [];
+        let statusOptions = [];
+
+        // ✅ ถ้ามี roleId -> ค้นหา Project และดึง roles ทั้งหมด
+        if (task.roleId) {
+            const project = await Project.findOne({ "roles.roleId": task.roleId });
+            if (project) {
+                roleOptions = project.roles; // ✅ ดึง role ทั้งหมดใน project นั้น
+            }
+        }
+
+        // ✅ ถ้ามี statusId -> ค้นหา Project และดึง statuses ทั้งหมด
+        if (task.statusId) {
+            const status = await Status.findById(task.statusId);
+            if (status) {
+                const statuses = await Status.find({ projectId: status.projectId }).sort({ position: 1 });
+                statusOptions = statuses; // ✅ ดึง status ทั้งหมดใน project นั้น
+            }
+        }
+
+        res.status(200).json({
+            task,
+            roleOptions,
+            statusOptions
+        });
+    } catch (error) {
+        console.error("❌ Error fetching task with options:", error);
+        res.status(500).json({ message: "Failed to fetch task", error });
+    }
+};
