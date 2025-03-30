@@ -20,6 +20,11 @@ const userSchema = new mongoose.Schema({
     unique: true,
     sparse: true, // อนุญาตให้ googleId เป็น null ได้
   },
+  lineUserId: {
+    type: String, // สำหรับเก็บ Line User ID
+    unique: true,
+    sparse: true, // อนุญาตให้ lineUserId เป็น null ได้
+  },
   profile: {
     type: String, // เก็บ URL ของรูปโปรไฟล์
     default: null, // ถ้าไม่ใช่ Google Login จะเริ่มต้นเป็น null

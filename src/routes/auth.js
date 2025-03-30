@@ -28,4 +28,8 @@ router.get(
   }
 );
 
+// line
+router.get('/line', authController.lineLogin);
+router.get('/line/callback', authController.lineCallback);
+
 module.exports = router;
