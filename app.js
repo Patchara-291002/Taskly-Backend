@@ -7,6 +7,8 @@ const dotenv = require('dotenv');
 const cors = require('cors');
 
 const scheduledNotifications = require('./src/services/scheduledNotifications');
+const lineNotificationService = require('./src/services/lineNotificationService');
+const webNotificationService = require('./src/services/webNotificationService');
 
 dotenv.config();
 
@@ -47,6 +49,7 @@ app.use('/course', require('./src/routes/course'));
 app.use('/assignment', require('./src/routes/assignment'));
 app.use('/upload', require('./src/routes/upload'));
 app.use('/line', require('./src/routes/line'));
+app.use('/notification', require('./src/routes/notification'));
 
 // Test route
 app.get('/', (req, res) => {
@@ -55,6 +58,10 @@ app.get('/', (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
+  // เริ่มระบบแจ้งเตือนอัตโนมัติ
   scheduledNotifications.setupScheduledJobs();
+  lineNotificationService.setupLineNotificationService();
+  webNotificationService.setupWebNotificationService();
+  
   console.log(`Server running on port ${PORT}`);
 });

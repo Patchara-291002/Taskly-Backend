@@ -2,23 +2,21 @@ const cron = require('node-cron');
 const User = require('../models/User');
 const Task = require('../models/Task');
 const Assignment = require('../models/Assignment');
-const lineController = require('../controllers/lineController');
+const Notification = require('../models/Notification');
 
-// เก็บข้อมูลการแจ้งเตือนล่าสุดเพื่อป้องกันการแจ้งเตือนซ้ำ
-const lastNotifications = {
-  // userId: { taskId: timestamp, assignmentId: timestamp }
-};
+// เก็บข้อมูลการแจ้งเตือนล่าสุดเพื่อป้องกันการสร้าง notifications ซ้ำ (เป็น in-memory cache)
+const lastNotifications = {};
 
 /**
- * ตรวจสอบและส่งแจ้งเตือนตามระยะเวลา
+ * ตรวจสอบและสร้างการแจ้งเตือนในฐานข้อมูล
  */
 const checkDeadlines = async () => {
   try {
     console.log('Running deadline check at:', new Date().toLocaleString());
     
-    // ดึงผู้ใช้ที่สามารถรับการแจ้งเตือนได้
-    const users = await User.find({ lineUserId: { $ne: null } });
-    console.log(`Found ${users.length} users with LINE accounts`);
+    // ดึงผู้ใช้ทั้งหมด
+    const users = await User.find({});
+    console.log(`Found ${users.length} users to check for notifications`);
     
     const now = new Date();
     
@@ -30,7 +28,7 @@ const checkDeadlines = async () => {
     ];
     
     for (const user of users) {
-      // เตรียมข้อมูลสำหรับการแจ้งเตือน
+      // เตรียม cache สำหรับการแจ้งเตือน
       if (!lastNotifications[user._id]) {
         lastNotifications[user._id] = {};
       }
@@ -47,7 +45,7 @@ const checkDeadlines = async () => {
 };
 
 /**
- * ตรวจสอบ Tasks สำหรับผู้ใช้คนหนึ่ง
+ * ตรวจสอบ Tasks และสร้าง notifications ถ้าจำเป็น
  */
 const checkTasksForUser = async (user, now, thresholds) => {
   // ดึงงาน Tasks ทั้งหมดที่ยังไม่เสร็จ
@@ -69,31 +67,35 @@ const checkTasksForUser = async (user, now, thresholds) => {
         (threshold.hours && hoursLeft <= threshold.hours && hoursLeft > threshold.hours - 1) || 
         (threshold.days && daysLeft <= threshold.days && daysLeft > threshold.days - 0.2)
       ) {
-        const lastNotified = lastNotifications[user._id][`task_${task._id}_${threshold.hours || threshold.days}`];
+        const notificationKey = `task_${task._id}_${threshold.hours || threshold.days}`;
+        const lastNotified = lastNotifications[user._id][notificationKey];
         
         // ถ้ายังไม่เคยแจ้งเตือนในช่วงเวลานี้ (หรือแจ้งไปนานแล้ว > 20 ชั่วโมง)
         if (!lastNotified || (now - lastNotified) > 20 * 60 * 60 * 1000) {
-          // สร้างข้อความแจ้งเตือน
-          const formatDueDate = dueDate.toLocaleString('th-TH', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
+          // สร้างการแจ้งเตือนในฐานข้อมูล
+          const notification = new Notification({
+            userId: user._id,
+            title: threshold.message,
+            content: `งาน: ${task.title}`,
+            itemType: 'task',
+            itemId: task._id,
+            contextId: task.project?._id,
+            contextName: task.project?.name || 'ไม่มีโปรเจกต์',
+            contextType: 'project',
+            dueDate: dueDate,
+            status: 'unread',
+            thresholdType: threshold.hours ? 'hours' : 'days',
+            thresholdValue: threshold.hours || threshold.days,
+            delivered: { line: false, web: false }
           });
           
-          const message = `${threshold.message}\n\n📌 งาน: ${task.title}\n📂 โปรเจกต์: ${task.project.name}\n⏰ กำหนดส่ง: ${formatDueDate}\n\n${getMotivationalQuote()}`;
+          await notification.save();
+          console.log(`Created ${threshold.days ? threshold.days + ' days' : threshold.hours + ' hours'} notification for task ${task._id} to user ${user._id}`);
           
-          // ส่งข้อความแจ้งเตือน
-          const result = await lineController.sendLineNotification(user._id, message);
+          // บันทึกเวลาที่สร้างแจ้งเตือนล่าสุด (เฉพาะใน memory)
+          lastNotifications[user._id][notificationKey] = now;
           
-          if (result.success) {
-            console.log(`Sent ${threshold.days ? threshold.days + ' days' : threshold.hours + ' hours'} notification for task ${task._id} to user ${user._id}`);
-            // บันทึกเวลาที่ส่งแจ้งเตือนล่าสุด
-            lastNotifications[user._id][`task_${task._id}_${threshold.hours || threshold.days}`] = now;
-          }
-          
-          break; // ส่งเตือนเพียงระดับเดียวต่องาน
+          break; // สร้างเตือนเพียงระดับเดียวต่องาน
         }
       }
     }
@@ -101,7 +103,7 @@ const checkTasksForUser = async (user, now, thresholds) => {
 };
 
 /**
- * ตรวจสอบ Assignments สำหรับผู้ใช้คนหนึ่ง
+ * ตรวจสอบ Assignments และสร้าง notifications ถ้าจำเป็น
  */
 const checkAssignmentsForUser = async (user, now, thresholds) => {
   // ดึงงาน Assignments ทั้งหมด
@@ -122,48 +124,39 @@ const checkAssignmentsForUser = async (user, now, thresholds) => {
         (threshold.hours && hoursLeft <= threshold.hours && hoursLeft > threshold.hours - 1) || 
         (threshold.days && daysLeft <= threshold.days && daysLeft > threshold.days - 0.2)
       ) {
-        const lastNotified = lastNotifications[user._id][`assignment_${assignment._id}_${threshold.hours || threshold.days}`];
+        const notificationKey = `assignment_${assignment._id}_${threshold.hours || threshold.days}`;
+        const lastNotified = lastNotifications[user._id][notificationKey];
         
         // ถ้ายังไม่เคยแจ้งเตือนในช่วงเวลานี้ (หรือแจ้งไปนานแล้ว)
         if (!lastNotified || (now - lastNotified) > 20 * 60 * 60 * 1000) {
-          // สร้างข้อความแจ้งเตือน
-          const formatDueDate = dueDate.toLocaleString('th-TH', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
+          // สร้างการแจ้งเตือนในฐานข้อมูล
+          const notification = new Notification({
+            userId: user._id,
+            title: threshold.message,
+            content: `งานส่ง: ${assignment.title}`,
+            itemType: 'assignment',
+            itemId: assignment._id,
+            contextId: assignment.course?._id,
+            contextName: assignment.course?.name || 'ไม่มีวิชา',
+            contextType: 'course',
+            dueDate: dueDate,
+            status: 'unread',
+            thresholdType: threshold.hours ? 'hours' : 'days',
+            thresholdValue: threshold.hours || threshold.days,
+            delivered: { line: false, web: false }
           });
           
-          const message = `${threshold.message}\n\n📚 งาน: ${assignment.title}\n📝 วิชา: ${assignment.course.name}\n⏰ กำหนดส่ง: ${formatDueDate}\n\n${getMotivationalQuote()}`;
+          await notification.save();
+          console.log(`Created ${threshold.days ? threshold.days + ' days' : threshold.hours + ' hours'} notification for assignment ${assignment._id} to user ${user._id}`);
           
-          // ส่งข้อความแจ้งเตือน
-          const result = await lineController.sendLineNotification(user._id, message);
+          // บันทึกเวลาที่สร้างแจ้งเตือนล่าสุด (เฉพาะใน memory)
+          lastNotifications[user._id][notificationKey] = now;
           
-          if (result.success) {
-            console.log(`Sent ${threshold.days ? threshold.days + ' days' : threshold.hours + ' hours'} notification for assignment ${assignment._id} to user ${user._id}`);
-            // บันทึกเวลาที่ส่งแจ้งเตือนล่าสุด
-            lastNotifications[user._id][`assignment_${assignment._id}_${threshold.hours || threshold.days}`] = now;
-          }
-          
-          break; // ส่งเตือนเพียงระดับเดียวต่องาน
+          break; // สร้างเตือนเพียงระดับเดียวต่องาน
         }
       }
     }
   }
-};
-
-/**
- * สร้างข้อความให้กำลังใจ
- */
-const getMotivationalQuote = () => {
-  const quotes = [
-    "💪 คุณทำได้! อย่าลืมจัดการเวลาให้ดี",
-    "🌟 เตรียมตัวให้พร้อม งานจะเสร็จทันเวลา",
-    "🚀 ทำทีละขั้น แล้วทุกอย่างจะสำเร็จ",
-    "⏳ อย่าผัดวันประกันพรุ่ง เริ่มต้นทำตั้งแต่วันนี้"
-  ];
-  return quotes[Math.floor(Math.random() * quotes.length)];
 };
 
 /**
