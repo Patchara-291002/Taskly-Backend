@@ -17,8 +17,8 @@ const app = express();
 app.use(express.json());
 app.use(cookieParser());
 app.use(cors({
-  origin: 'http://localhost:3001', 
-  credentials: true 
+  origin: process.env.FRONTEND_URL || 'http://localhost:3001',
+  credentials: true
 }));
 
 // Session setup
@@ -33,9 +33,19 @@ app.use(passport.initialize());
 app.use(passport.session());
 
 // DB Connection
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log('MongoDB connected'))
-  .catch((err) => console.log(err));
+mongoose.connect(process.env.MONGO_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+  serverSelectionTimeoutMS: 30000,
+  retryWrites: true,
+  w: "majority"
+})
+  .then(() => {
+    console.log('MongoDB connected successfully');
+  })
+  .catch((err) => {
+    console.error('MongoDB connection error:', err);
+  });
 
 // Routes
 app.use('/auth', require('./src/routes/auth'));
@@ -59,6 +69,6 @@ app.listen(PORT, () => {
   // เริ่มระบบแจ้งเตือนอัตโนมัติ
   // scheduledNotifications.checkAllTasks();
   scheduledNotifications.checkDeadlinesAndNotify();
-  
+
   console.log(`Server running on port ${PORT}`);
 });
