@@ -54,7 +54,7 @@ exports.createTask = async (req, res) => {
             dueDate,
             startTime,
             dueTime,
-            assignees: finalAssignees // ใช้ array ที่รวมผู้สร้างแล้ว
+            assignees: finalAssignees
         });
 
         await newTask.save();
