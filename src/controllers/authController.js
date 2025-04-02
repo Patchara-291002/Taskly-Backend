@@ -101,8 +101,9 @@ exports.login = async (req, res) => {
     res.cookie("token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "Strict",
-      maxAge: 24 * 60 * 60 * 1000
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+      maxAge: 24 * 60 * 60 * 1000,
+      domain: process.env.NODE_ENV === "production" ? ".herokuapp.com" : "localhost"
     });
 
     res.status(200).json({ token, user: { id: user._id, name: user.name, email: user.email } });
