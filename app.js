@@ -21,7 +21,7 @@ app.use(cors({
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
-  exposedHeaders: ['set-cookie']
+  exposedHeaders: ['Set-Cookie']
 }));
 
 // Session setup
@@ -30,11 +30,11 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: process.env.NODE_ENV === 'production',
+    secure: process.env.NODE_ENV === 'production', // true for HTTPS
     httpOnly: true,
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-    maxAge: 24 * 60 * 60 * 1000,
-    domain: process.env.NODE_ENV === 'production' ? 'taskly-a53d1719236a.herokuapp.com' : undefined
+    sameSite: 'none',  // Required for cross-site requests
+    maxAge: 24 * 60 * 60 * 1000,  // 24 hours
+    path: '/'
   }
 }));
 
