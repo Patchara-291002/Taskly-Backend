@@ -38,14 +38,17 @@ mongoose.connect(process.env.MONGO_URI, {
   useUnifiedTopology: true,
   serverSelectionTimeoutMS: 30000,
   retryWrites: true,
-  w: "majority"
+  w: "majority",
+  connectTimeoutMS: 30000,
 })
-  .then(() => {
-    console.log('MongoDB connected successfully');
-  })
-  .catch((err) => {
-    console.error('MongoDB connection error:', err);
-  });
+.then(() => {
+  console.log('MongoDB connected successfully');
+})
+.catch((err) => {
+  console.error('MongoDB connection error:', err);
+  // Exit process with failure
+  process.exit(1);
+});
 
 // Routes
 app.use('/auth', require('./src/routes/auth'));
