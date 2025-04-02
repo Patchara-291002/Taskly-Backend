@@ -25,13 +25,6 @@ const notificationSchema = new mongoose.Schema({
     required: true,
     refPath: 'itemType'
   },
-  contextType: {
-    type: String,
-    enum: ['project', 'course'],
-    required: true
-  },
-  contextId: mongoose.Schema.Types.ObjectId,
-  contextName: String,
   dueDate: {
     type: Date,
     required: true
@@ -41,14 +34,12 @@ const notificationSchema = new mongoose.Schema({
     enum: ['unread', 'read'],
     default: 'unread'
   },
-  thresholdType: {
-    type: String,
-    enum: ['hours', 'days'],
-    required: true
-  },
-  thresholdValue: {
+  // แทนที่ thresholdType และ thresholdValue ด้วยฟิลด์เดียว
+  notificationType: {
     type: Number,
-    required: true
+    required: true,
+    enum: [0, 1, 2, 3],
+    default: 0
   },
   delivered: {
     line: { type: Boolean, default: false },

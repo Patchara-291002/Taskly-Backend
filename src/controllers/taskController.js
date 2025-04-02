@@ -5,6 +5,7 @@ const Project = require('../models/Project');
 exports.createTask = async (req, res) => {
     try {
         const { projectId, statusId, taskName, detail, priority, startDate, dueDate, startTime, dueTime, assignees, roleId } = req.body;
+        const creatorId = req.userId; // ID ของผู้ใช้ที่สร้าง task (จาก middleware authentication)
 
         // ✅ ถ้าไม่มี statusId -> ใช้ Status ตัวแรกของ Project
         let finalStatusId = statusId;
@@ -34,6 +35,14 @@ exports.createTask = async (req, res) => {
             finalRoleId = project.roles[0].roleId; // ✅ ใช้ Default Role
         }
 
+        // ✅ สร้าง array assignees ที่รวมผู้สร้าง
+        let finalAssignees = Array.isArray(assignees) ? [...assignees] : [];
+        
+        // ✅ เพิ่มผู้สร้างเข้าไปใน assignees ถ้ายังไม่มี
+        if (creatorId && !finalAssignees.includes(creatorId)) {
+            finalAssignees.push(creatorId);
+        }
+
         // ✅ สร้าง Task ใหม่
         const newTask = new Task({
             statusId: finalStatusId,
@@ -45,7 +54,7 @@ exports.createTask = async (req, res) => {
             dueDate,
             startTime,
             dueTime,
-            assignees
+            assignees: finalAssignees // ใช้ array ที่รวมผู้สร้างแล้ว
         });
 
         await newTask.save();

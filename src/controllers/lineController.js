@@ -66,26 +66,35 @@ exports.sendLineNotification = async (userId, message = 'Hi') => {
             return { success: false, message: 'No LINE user ID found for this user' };
         }
 
-        const response = await axios({
-            method: 'post',
-            url: 'https://api.line.me/v2/bot/message/push',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${process.env.LINE_CHANNEL_ACCESS_TOKEN}`
-            },
-            data: {
-                to: user.lineUserId,
-                messages: [
-                    {
-                        type: 'text',
-                        text: message
-                    }
-                ]
-            }
-        });
-
-        console.log('LINE notification sent successfully');
-        return { success: true, data: response.data };
+        try {
+            const response = await axios({
+                method: 'post',
+                url: 'https://api.line.me/v2/bot/message/push',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${process.env.LINE_CHANNEL_ACCESS_TOKEN}`
+                },
+                data: {
+                    to: user.lineUserId,
+                    messages: [
+                        {
+                            type: 'text',
+                            text: message
+                        }
+                    ]
+                }
+            });
+            
+            console.log('LINE notification sent successfully');
+            return { success: true, data: response.data };
+        } catch (apiError) {
+            console.error('LINE API Error:', apiError.response?.data || apiError.message);
+            return { 
+                success: false, 
+                error: apiError.response?.data?.message || apiError.message,
+                details: apiError.response?.data
+            };
+        }
     } catch (error) {
         console.error('Error sending LINE notification:', error.message);
         return { success: false, error: error.message };
