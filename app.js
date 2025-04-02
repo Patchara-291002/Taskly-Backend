@@ -25,9 +25,15 @@ app.use(cors({
 
 // Session setup
 app.use(session({
-  secret: 'secret_key',
+  secret: process.env.JWT_SECRET || 'secret_key',
   resave: false,
   saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === 'production', // true in production
+    httpOnly: true,
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+  }
 }));
 
 // Passport setup
