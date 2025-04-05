@@ -14,14 +14,15 @@ require('./src/config/passport');
 
 const app = express();
 
+
 app.use(express.json());
 app.use(cookieParser());
 app.use(cors({
   origin: process.env.FRONTEND_URL,
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
-  exposedHeaders: ['Set-Cookie']
+  // methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  // allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
+  // exposedHeaders: ['Set-Cookie']
 }));
 
 // Session setup
@@ -44,8 +45,6 @@ app.use(passport.session());
 
 // DB Connection
 mongoose.connect(process.env.MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
   serverSelectionTimeoutMS: 30000,
   retryWrites: true,
   w: "majority",
@@ -80,8 +79,7 @@ app.get('/', (req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   // เริ่มระบบแจ้งเตือนอัตโนมัติ
-  // scheduledNotifications.checkAllTasks();
-  scheduledNotifications.checkDeadlinesAndNotify();
+  scheduledNotifications.setupScheduledJobs();
 
   console.log(`Server running on port ${PORT}`);
 });

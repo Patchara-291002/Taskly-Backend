@@ -133,23 +133,32 @@ const checkDeadlinesAndNotify = async () => {
  * ตั้งค่าการทำงานตามกำหนดเวลา
  */
 const setupScheduledJobs = () => {
-  // ตรวจสอบงานทุกชั่วโมง
-  cron.schedule('0 * * * *', async () => {
-    console.log('Running scheduled deadline check...');
-    await checkDeadlinesAndNotify();
-  });
+  // เพิ่ม logging เพื่อติดตามการทำงาน
+  console.log('Setting up scheduled jobs...');
   
-  // เริ่มตรวจสอบทันทีที่เริ่มระบบ
+  // ตรวจสอบงานทุก 15 นาที
+  const job = cron.schedule('*/5 * * * *', async () => {
+    const currentTime = new Date().toLocaleString('th-TH');
+    console.log(`[${currentTime}] Running scheduled deadline check...`);
+    await checkDeadlinesAndNotify();
+  }, {
+    scheduled: true,
+    timezone: "Asia/Bangkok"
+  });
+
+  // Start the job
+  job.start();
+  
+  // เริ่มตรวจสอบครั้งแรกหลังจาก 5 วินาที
   setTimeout(async () => {
     console.log('Running initial deadline check...');
     await checkDeadlinesAndNotify();
   }, 5000);
   
-  console.log('Notification scheduler initialized');
-};
+  console.log('Notification scheduler initialized successfully');
+};;
 
 // ส่งออกฟังก์ชัน
 module.exports = {
-  checkDeadlinesAndNotify,
   setupScheduledJobs
 };
