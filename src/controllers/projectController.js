@@ -1,6 +1,7 @@
 const Project = require('../models/Project');
 const Status = require('../models/Status');
 const Task = require('../models/Task');
+const { deleteFileFromS3 } = require('./uploadController');
 
 const mongoose = require('mongoose')
 
@@ -221,29 +222,119 @@ exports.addFileToProject = async (req, res) => {
     try {
         const { id } = req.params;
         if (!req.file) {
-            return res.status(400).json({ message: 'No file uploaded' });
+            return res.status(400).json({ 
+                success: false,
+                message: 'ไม่พบไฟล์ที่อัปโหลด' 
+            });
         }
-
-        const fileName = req.body.fileName || req.file.originalname;
-        const fileAddress = req.file.location;
 
         const project = await Project.findById(id);
         if (!project) {
-            return res.status(404).json({ message: 'Project not found' });
+            return res.status(404).json({ 
+                success: false,
+                message: 'ไม่พบโปรเจกต์' 
+            });
         }
 
         const isUserInProject = project.users.some(user => user.userId.toString() === req.userId);
         if (!isUserInProject) {
-            return res.status(403).json({ message: 'Unauthorized to add file to this project' });
+            return res.status(403).json({ 
+                success: false,
+                message: 'ไม่มีสิทธิ์เพิ่มไฟล์ในโปรเจกต์นี้' 
+            });
         }
 
-        project.files.push({ fileName, fileAddress });
+        // แปลงชื่อไฟล์เป็น UTF-8
+        const originalFileName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+
+        // เพิ่มไฟล์ด้วยชื่อที่ถูกแปลงแล้ว
+        project.files.push({ 
+            fileName: originalFileName,
+            fileAddress: req.file.location
+        });
+        
         await project.save();
 
-        res.status(200).json({ message: 'File added successfully', project });
+        res.status(200).json({
+            success: true,
+            message: 'เพิ่มไฟล์สำเร็จ',
+            file: {
+                fileName: originalFileName,
+                fileUrl: req.file.location
+            }
+        });
     } catch (error) {
         console.error("❌ Error adding file to project:", error);
-        res.status(500).json({ message: 'Error adding file to project', error });
+        res.status(500).json({ 
+            success: false,
+            message: 'เกิดข้อผิดพลาดในการเพิ่มไฟล์',
+            error: error.message 
+        });
+    }
+};
+
+exports.deleteFileFromProject = async (req, res) => {
+    try {
+        const { id, fileId } = req.params;
+
+        const project = await Project.findById(id);
+        if (!project) {
+            return res.status(404).json({ 
+                success: false,
+                message: 'ไม่พบโปรเจกต์' 
+            });
+        }
+
+        // ตรวจสอบสิทธิ์ผู้ใช้
+        const isUserInProject = project.users.some(user => user.userId.toString() === req.userId);
+        if (!isUserInProject) {
+            return res.status(403).json({ 
+                success: false,
+                message: 'ไม่มีสิทธิ์ลบไฟล์ในโปรเจกต์นี้' 
+            });
+        }
+
+        // หาไฟล์ที่จะลบ
+        const fileToDelete = project.files.find(file => file._id.toString() === fileId);
+        if (!fileToDelete) {
+            return res.status(404).json({ 
+                success: false,
+                message: 'ไม่พบไฟล์ที่ต้องการลบ' 
+            });
+        }
+
+        try {
+            // ดึง key จาก URL โดยใช้ URL object
+            const fileUrl = new URL(fileToDelete.fileAddress);
+            // ตัด / ตัวแรกออกจาก pathname
+            const key = decodeURIComponent(fileUrl.pathname.substring(1));
+
+            console.log('Attempting to delete file with key:', key); // logging เพื่อตรวจสอบ
+
+            // ลบไฟล์จาก S3
+            await deleteFileFromS3(key);
+            console.log('Successfully deleted from S3'); // logging เพื่อตรวจสอบ
+
+            // ลบไฟล์จาก database
+            project.files.pull({ _id: fileId });
+            await project.save();
+
+            res.status(200).json({ 
+                success: true,
+                message: 'ลบไฟล์สำเร็จ',
+                deletedFile: fileToDelete
+            });
+        } catch (deleteError) {
+            console.error('Error during file deletion:', deleteError);
+            throw deleteError;
+        }
+    } catch (error) {
+        console.error("❌ Error deleting file:", error);
+        res.status(500).json({ 
+            success: false,
+            message: 'เกิดข้อผิดพลาดในการลบไฟล์', 
+            error: error.message 
+        });
     }
 };
 
@@ -284,23 +375,6 @@ exports.deleteContentFromProject = async (req, res) => {
     }
 };
 
-exports.deleteFileFromProject = async (req, res) => {
-    try {
-        const { id, fileId } = req.params; // รับค่า projectId และ fileId
-
-        const project = await Project.findById(id);
-        if (!project) {
-            return res.status(404).json({ message: 'Project not found' });
-        }
-
-        project.files.pull({ _id: fileId });
-        await project.save();
-
-        res.status(200).json({ message: 'File deleted successfully', project });
-    } catch (error) {
-        res.status(500).json({ message: 'Error deleting file from project', error });
-    }
-};
 
 exports.addRoleToProject = async (req, res) => {
     try {
