@@ -37,7 +37,7 @@ exports.createTask = async (req, res) => {
 
         // ✅ สร้าง array assignees ที่รวมผู้สร้าง
         let finalAssignees = Array.isArray(assignees) ? [...assignees] : [];
-        
+
         // ✅ เพิ่มผู้สร้างเข้าไปใน assignees ถ้ายังไม่มี
         if (creatorId && !finalAssignees.includes(creatorId)) {
             finalAssignees.push(creatorId);
@@ -73,7 +73,7 @@ exports.updateTaskStatus = async (req, res) => {
         const { statusId } = req.body;
 
         const task = await Task.findByIdAndUpdate(id, { statusId }, { new: true });
-        
+
         if (!task) {
             return res.status(404).json({ message: 'Task not found' });
         }
@@ -153,7 +153,7 @@ exports.getTaskById = async (req, res) => {
 
 exports.deleteTask = async (req, res) => {
     try {
-        const { id } = req.params; 
+        const { id } = req.params;
 
         const task = await Task.findByIdAndDelete(id);
         if (!task) {
@@ -165,3 +165,212 @@ exports.deleteTask = async (req, res) => {
         res.status(500).json({ message: 'Failed to delete task', error: error.message });
     }
 }
+
+exports.getIncompleteTasks = async (req, res) => {
+    try {
+        const userId = req.userId;
+
+        // 1. Find all projects where user is a member
+        const projects = await Project.find({
+            'users.userId': userId
+        }, {
+            'users.$': 1,  // Get only the matched user
+            projectName: 1
+        }).lean();
+
+        if (!projects || projects.length === 0) {
+            return res.status(200).json({
+                success: true,
+                tasks: []
+            });
+        }
+
+        let allTasks = [];
+
+        // 2. For each project, get tasks based on user's role
+        for (const project of projects) {
+            const userInProject = project.users[0]; // Get user's data in this project
+            const userProjectRole = userInProject.projectRole?.roleId;
+
+            if (!userProjectRole) continue;
+
+            // Find tasks in this project with user's role
+            const projectTasks = await Task.find({
+                roleId: userProjectRole,
+                statusId: {
+                    $in: await Status.find({
+                        projectId: project._id,
+                        isDone: false
+                    }).distinct('_id')
+                }
+            })
+                .populate('statusId', 'statusName color projectId')
+                .populate('roleId', 'name color')
+                .lean();
+
+            // Add project context to each task
+            const tasksWithContext = projectTasks.map(task => ({
+                _id: task._id,
+                taskName: task.taskName,
+                detail: task.detail,
+                priority: task.priority,
+                startDate: task.startDate,
+                dueDate: task.dueDate,
+                startTime: task.startTime,
+                dueTime: task.dueTime,
+                project: {
+                    id: project._id,
+                    name: project.projectName
+                },
+                status: task.statusId ? {
+                    id: task.statusId._id,
+                    name: task.statusId.statusName,
+                    color: task.statusId.color
+                } : null,
+                role: task.roleId ? {
+                    id: task.roleId._id,
+                    name: task.roleId.name,
+                    color: task.roleId.color
+                } : null
+            }));
+
+            allTasks = [...allTasks, ...tasksWithContext];
+        }
+
+        // Sort by due date (closest first)
+        allTasks.sort((a, b) => {
+            if (!a.dueDate) return 1;
+            if (!b.dueDate) return -1;
+            return new Date(a.dueDate) - new Date(b.dueDate);
+        });
+
+        res.status(200).json({
+            success: true,
+            tasks: allTasks
+        });
+
+    } catch (error) {
+        console.error("❌ Error fetching incomplete tasks:", error);
+        res.status(500).json({
+            success: false,
+            message: 'เกิดข้อผิดพลาดในการดึงข้อมูลงาน',
+            error: error.message
+        });
+    }
+};
+
+exports.getProjectIdByTaskId = async (req, res) => {
+    try {
+        const { taskId } = req.params;
+
+        // หา task และ populate statusId เพื่อเข้าถึง projectId
+        const task = await Task.findById(taskId)
+            .populate('statusId', 'projectId')
+            .lean();
+
+        if (!task) {
+            return res.status(404).json({
+                success: false,
+                message: 'ไม่พบ Task ที่ระบุ'
+            });
+        }
+
+        if (!task.statusId || !task.statusId.projectId) {
+            return res.status(404).json({
+                success: false,
+                message: 'ไม่พบข้อมูล Project ที่เกี่ยวข้อง'
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            projectId: task.statusId.projectId
+        });
+
+    } catch (error) {
+        console.error("❌ Error fetching project ID:", error);
+        res.status(500).json({
+            success: false,
+            message: 'เกิดข้อผิดพลาดในการดึงข้อมูล Project',
+            error: error.message
+        });
+    }
+};
+
+exports.moveTaskToDone = async (req, res) => {
+    try {
+        const { taskId } = req.params;
+        const { projectId } = req.body;
+
+        // Validate required fields
+        if (!taskId || !projectId) {
+            return res.status(400).json({
+                success: false,
+                message: 'ต้องระบุ taskId และ projectId'
+            });
+        }
+
+        // Find task
+        const task = await Task.findById(taskId)
+            .populate('statusId', 'projectId')
+            .lean();
+
+        if (!task) {
+            return res.status(404).json({
+                success: false,
+                message: 'ไม่พบ Task ที่ระบุ'
+            });
+        }
+
+        // Verify task belongs to the specified project
+        if (task.statusId.projectId.toString() !== projectId) {
+            return res.status(403).json({
+                success: false,
+                message: 'Task นี้ไม่ได้อยู่ในโปรเจคที่ระบุ'
+            });
+        }
+
+        // Find Done status in the project
+        const doneStatus = await Status.findOne({
+            projectId: projectId,
+            isDone: true
+        });
+
+        if (!doneStatus) {
+            return res.status(404).json({
+                success: false,
+                message: 'ไม่พบสถานะ Done ในโปรเจคนี้'
+            });
+        }
+
+        // Update task status to Done
+        const updatedTask = await Task.findByIdAndUpdate(
+            taskId,
+            { statusId: doneStatus._id },
+            { new: true }
+        ).populate('statusId', 'statusName color isDone');
+
+        res.status(200).json({
+            success: true,
+            message: 'ย้าย Task ไปยังสถานะ Done สำเร็จ',
+            task: {
+                _id: updatedTask._id,
+                taskName: updatedTask.taskName,
+                status: {
+                    id: updatedTask.statusId._id,
+                    name: updatedTask.statusId.statusName,
+                    color: updatedTask.statusId.color
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error("❌ Error moving task to done:", error);
+        res.status(500).json({
+            success: false,
+            message: 'เกิดข้อผิดพลาดในการย้าย Task',
+            error: error.message
+        });
+    }
+};
+

@@ -6,18 +6,22 @@ const projectSchema = new mongoose.Schema(
     users: [
       {
         userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-        role: { type: String, required: true }
+        role: { type: String, required: true },
+        projectRole: {
+          roleId: { type: mongoose.Schema.Types.ObjectId, ref: 'roles' },
+          assignedAt: { type: Date, default: Date.now }
+        }
       }
     ],
     startDate: { type: String },
     dueDate: { type: String },
     percent: { type: Number },
-    roles:[
+    roles: [
       {
         roleId: { type: mongoose.Schema.Types.ObjectId, default: () => new mongoose.Types.ObjectId() },
         name: { type: String, required: true },
         color: { type: String, required: true }
-    }
+      }
     ],
     contents: [
       {
@@ -25,13 +29,13 @@ const projectSchema = new mongoose.Schema(
         content: { type: String },
         isLink: { type: Boolean, default: false }
       }
-  ],
+    ],
     files: [
       {
-          fileName: { type: String },
-          fileAddress: { type: String },
+        fileName: { type: String },
+        fileAddress: { type: String },
       }
-  ],
+    ],
   },
   {
     timestamps: { createdAt: 'createdAt', updateAt: 'updatedAt' }

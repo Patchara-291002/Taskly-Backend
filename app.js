@@ -6,7 +6,7 @@ const cookieParser = require('cookie-parser');
 const dotenv = require('dotenv');
 const cors = require('cors');
 
-const scheduledNotifications = require('./src/services/scheduledNotifications');
+const { initializeNotificationServices } = require('./src/services/initializeNotificationServices');
 
 dotenv.config();
 
@@ -78,8 +78,8 @@ app.get('/', (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  // เริ่มระบบแจ้งเตือนอัตโนมัติ
-  scheduledNotifications.setupScheduledJobs();
+
+  initializeNotificationServices();
 
   console.log(`Server running on port ${PORT}`);
 });

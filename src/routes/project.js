@@ -33,5 +33,6 @@ router.post('/create-role/:id', authenticate, projectController.addRoleToProject
 router.put('/update-role/:id/:roleId', authenticate, projectController.updateRoleInProject);
 router.delete('/delete-role/:id/:roleId', authenticate, projectController.deleteRoleFromProject);
 
+router.put('/user-role/:projectId/:userId', authenticate, projectController.updateUserProjectRole);
 
 module.exports = router;

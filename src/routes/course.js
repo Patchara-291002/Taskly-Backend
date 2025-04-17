@@ -3,6 +3,8 @@ const router = express.Router();
 const authenticate = require('../middleware/authenticate');
 const courseController = require('../controllers/courseController');
 const uploadController = require('../controllers/uploadController');
+// home
+router.get('/class-today', authenticate, courseController.getClassToDay);
 
 router.get('/', authenticate, courseController.getAllCourses);
 router.get('/:id', authenticate, courseController.fetchCourseByCourseId)
