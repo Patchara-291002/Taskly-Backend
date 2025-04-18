@@ -14,21 +14,27 @@ require('./src/config/passport');
 
 const app = express();
 
-
-
+// CORS configuration
 app.use(cors({
   origin: process.env.FRONTEND_URL,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Set-Cookie'],
   exposedHeaders: ['Set-Cookie']
 }));
 
-app.use(cookieParser());
+// Add headers for cross-origin
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Origin', process.env.FRONTEND_URL);
+  next();
+});
+
+// Cookie and body parser
+app.use(cookieParser(process.env.JWT_SECRET));
 app.use(express.json());
 
-
-// Session setup
+// Session setup with updated cookie settings
 app.use(session({
   secret: process.env.JWT_SECRET || 'secret_key',
   resave: false,
@@ -38,7 +44,8 @@ app.use(session({
     secure: true,
     sameSite: 'none',
     maxAge: 24 * 60 * 60 * 1000,
-    path: '/'
+    path: '/',
+    domain: process.env.NODE_ENV === 'production' ? '.herokuapp.com' : undefined
   }
 }));
 
@@ -46,6 +53,7 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
+// Token extraction middleware
 app.use((req, res, next) => {
   const token = req.headers.authorization?.split(' ')[1] ||
     req.cookies.token ||
@@ -69,7 +77,6 @@ mongoose.connect(process.env.MONGO_URI, {
   })
   .catch((err) => {
     console.error('MongoDB connection error:', err);
-    // Exit process with failure
     process.exit(1);
   });
 
@@ -77,7 +84,7 @@ mongoose.connect(process.env.MONGO_URI, {
 app.use('/auth', require('./src/routes/auth'));
 app.use('/project', require('./src/routes/project'));
 app.use('/status', require('./src/routes/status'));
-app.use('/task', require('./src/routes/task'))
+app.use('/task', require('./src/routes/task'));
 app.use('/user', require('./src/routes/user'));
 app.use('/course', require('./src/routes/course'));
 app.use('/assignment', require('./src/routes/assignment'));
@@ -93,8 +100,6 @@ app.get('/', (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-
   NotificationServices();
-
   console.log(`Server running on port ${PORT}`);
 });
