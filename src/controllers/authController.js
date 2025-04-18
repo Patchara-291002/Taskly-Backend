@@ -211,7 +211,10 @@ exports.lineCallback = async (req, res) => {
     // ตรวจสอบ state เพื่อป้องกัน CSRF
     if (state !== req.cookies.lineState) {
       console.log("State mismatch: received", state, "expected", req.cookies.lineState);
-      return res.status(400).redirect(`${process.env.FRONTEND_URL}/login?error=invalid_state`);
+      return res.status(400).json({
+        success: false,
+        error: 'invalid_state'
+      });
     }
 
     // แลกโค้ดเพื่อรับ token
@@ -231,6 +234,7 @@ exports.lineCallback = async (req, res) => {
     });
 
     const { access_token } = tokenResponse.data;
+    console.log("LINE access token received");
 
     // ดึงข้อมูลผู้ใช้จาก LINE
     const profileResponse = await axios({
@@ -242,6 +246,7 @@ exports.lineCallback = async (req, res) => {
     });
 
     const { userId: lineUserId, displayName: name, pictureUrl: profile } = profileResponse.data;
+    console.log("LINE profile received:", { name, lineUserId });
 
     // ค้นหาหรือสร้างผู้ใช้
     let user = await User.findOne({ lineUserId });
@@ -252,12 +257,15 @@ exports.lineCallback = async (req, res) => {
         email: `line_${lineUserId}@taskly.app`,
         lineUserId,
         profile,
-        isVerified: true // LINE users are automatically verified
+        isVerified: true
       });
       await user.save();
+      console.log("New user created");
+    } else {
+      console.log("Existing user found");
     }
 
-    // สร้าง JWT token เหมือนกับ login ปกติ
+    // สร้าง JWT token
     const token = jwt.sign(
       { id: user._id }, 
       process.env.JWT_SECRET, 
@@ -267,16 +275,29 @@ exports.lineCallback = async (req, res) => {
     // ตั้งค่า cookie
     res.cookie("token", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      secure: true,
+      sameSite: 'none',
       maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     });
 
-    // redirect กลับไปที่ frontend พร้อม token
-    res.redirect(`${process.env.FRONTEND_URL}/login/line-callback?token=${token}`);
+    // ส่งข้อมูลกลับแบบ JSON
+    return res.status(200).json({
+      success: true,
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        profile: user.profile
+      }
+    });
 
   } catch (error) {
     console.error('LINE login error:', error.response?.data || error.message);
-    res.redirect(`${process.env.FRONTEND_URL}/login?error=line_failed`);
+    return res.status(500).json({
+      success: false,
+      error: 'line_login_failed',
+      message: error.message
+    });
   }
 };
