@@ -231,6 +231,7 @@ exports.lineCallback = async (req, res) => {
     });
 
     const { access_token } = tokenResponse.data;
+    console.log("LINE access token received:", access_token);
 
     // ดึงข้อมูลผู้ใช้จาก LINE
     const profileResponse = await axios({
@@ -242,6 +243,7 @@ exports.lineCallback = async (req, res) => {
     });
 
     const { userId: lineUserId, displayName: name, pictureUrl: profile } = profileResponse.data;
+    console.log("LINE profile received:", { lineUserId, name, profile });
 
     // ค้นหาหรือสร้างผู้ใช้
     let user = await User.findOne({ lineUserId });
@@ -252,31 +254,47 @@ exports.lineCallback = async (req, res) => {
         email: `line_${lineUserId}@taskly.app`,
         lineUserId,
         profile,
-        isVerified: true // LINE users are automatically verified
+        isVerified: true
       });
       await user.save();
+      console.log("New user created:", user);
+    } else {
+      console.log("Existing user found:", user);
     }
 
-    // สร้าง JWT token เหมือนกับ login ปกติ
+    // สร้าง JWT token
     const token = jwt.sign(
       { id: user._id }, 
       process.env.JWT_SECRET, 
       { expiresIn: '7d' }
     );
+    console.log("JWT token created");
 
-    // ตั้งค่า cookie
+    // ล้าง line state cookie
+    res.clearCookie('lineState');
+
+    // ตั้งค่า cookie สำหรับ authentication
     res.cookie("token", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+      secure: true,
+      sameSite: 'none',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      path: '/'
     });
 
-    // redirect กลับไปที่ frontend พร้อม token
-    res.redirect(`${process.env.FRONTEND_URL}/login/line/callback?token=${token}`);
+    // ส่งข้อมูลกลับ frontend
+    const userData = {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      profile: user.profile
+    };
+
+    console.log("Redirecting to frontend with token");
+    return res.redirect(`${process.env.FRONTEND_URL}/login/line/callback?token=${token}`);
 
   } catch (error) {
     console.error('LINE login error:', error.response?.data || error.message);
-    res.redirect(`${process.env.FRONTEND_URL}/login?error=line_failed`);
+    return res.redirect(`${process.env.FRONTEND_URL}/login?error=line_failed`);
   }
 };
