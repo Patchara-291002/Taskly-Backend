@@ -273,7 +273,7 @@ exports.lineCallback = async (req, res) => {
     });
 
     // redirect กลับไปที่ frontend พร้อม token
-    res.redirect(`${process.env.FRONTEND_URL}/login/line/callback?token=${token}`);
+    res.redirect(`${process.env.FRONTEND_URL}/login/line-callback?token=${token}`);
 
   } catch (error) {
     console.error('LINE login error:', error.response?.data || error.message);
