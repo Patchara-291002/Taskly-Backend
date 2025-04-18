@@ -193,20 +193,38 @@ exports.getUserInfo = async (req, res) => {
 
 exports.lineLogin = (req, res) => {
   const state = crypto.randomBytes(16).toString('hex');
+
+  // Set cookie with proper options for cross-origin
   res.cookie('lineState', state, {
-    maxAge: 600000,
+    maxAge: 600000, // 10 minutes
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax"
+    secure: true, // Always use secure in production
+    sameSite: 'none',
+    path: '/'
   });
 
   const lineLoginUrl = `https://access.line.me/oauth2/v2.1/authorize?response_type=code&client_id=${process.env.LINE_LOGIN_CHANNEL_ID}&redirect_uri=${encodeURIComponent(process.env.LINE_CALLBACK_URL)}&state=${state}&scope=profile%20openid`;
+
+  console.log('Setting lineState cookie:', state);
   res.redirect(lineLoginUrl);
 };
 
 exports.lineCallback = async (req, res) => {
   try {
     const { code, state } = req.query;
+    console.log('Received state:', state);
+    console.log('Stored state:', req.cookies.lineState);
+    console.log('All cookies:', req.cookies);
+
+    if(process.env.NODE_ENV !== 'production') {
+      console.log('Skipping state check in development');
+    } else if (state !== req.cookies.lineState) {
+      console.log("State mismatch: received", state, "expected", req.cookies.lineState);
+      return res.status(400).json({
+        success: false,
+        error: 'invalid_state'
+      });
+    }
 
     // ตรวจสอบ state เพื่อป้องกัน CSRF
     if (state !== req.cookies.lineState) {
@@ -267,8 +285,8 @@ exports.lineCallback = async (req, res) => {
 
     // สร้าง JWT token
     const token = jwt.sign(
-      { id: user._id }, 
-      process.env.JWT_SECRET, 
+      { id: user._id },
+      process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
 
