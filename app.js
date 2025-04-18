@@ -25,8 +25,9 @@ app.use(cors({
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
-  exposedHeaders: ['Set-Cookie']
+  exposedHeaders: ['Set-Cookie', 'Authorization']
 }));
+
 
 // Session setup
 app.use(session({
@@ -35,10 +36,9 @@ app.use(session({
   saveUninitialized: false,
   cookie: {
     httpOnly: true,
-    secure: true,  // เปิดใช้เพราะใช้ HTTPS
-    sameSite: 'none',  // อนุญาต cross-site requests
-    domain: '.herokuapp.com',  // domain สำหรับ production
-    maxAge: 24 * 60 * 60 * 1000,  // 24 hours
+    secure: true,
+    sameSite: 'none',
+    maxAge: 24 * 60 * 60 * 1000,
     path: '/'
   }
 }));
@@ -46,6 +46,17 @@ app.use(session({
 // Passport setup
 app.use(passport.initialize());
 app.use(passport.session());
+
+app.use((req, res, next) => {
+  const token = req.headers.authorization?.split(' ')[1] ||
+    req.cookies.token ||
+    req.query.token;
+
+  if (token) {
+    req.token = token;
+  }
+  next();
+});
 
 // DB Connection
 mongoose.connect(process.env.MONGO_URI, {
