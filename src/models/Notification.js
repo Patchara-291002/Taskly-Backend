@@ -13,7 +13,12 @@ const notificationSchema = new mongoose.Schema({
     type: {
         type: String,
         required: true,
-        enum: ['task', 'assignment', 'course'] // ประเภทของการแจ้งเตือน
+        enum: [
+            'task-assigned',          
+            'task-deadline',         
+            'assignment',
+            'course'
+        ]
     },
     itemId: {
         type: mongoose.Schema.Types.ObjectId,

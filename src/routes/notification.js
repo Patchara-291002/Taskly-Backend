@@ -1,10 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const Notification = require('../models/Notification');
 const authenticate = require('../middleware/authenticate');
 const notificationController = require('../controllers/notificationController');
 
-// ดึงการแจ้งเตือนทั้งหมด (5 วันย้อนหลัง)
+// ดึงจำนวนการแจ้งเตือนที่ยังไม่ได้อ่าน
+router.get('/unread-count', authenticate, notificationController.getUnreadCount);
+
+// ดึงการแจ้งเตือนทั้งหมด 5 วันย้อนหลัง
 router.get('/', authenticate, notificationController.getAllNotifications);
 
 // อัพเดทสถานะการอ่านทั้งหมด

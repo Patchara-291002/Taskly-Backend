@@ -6,7 +6,7 @@ const cookieParser = require('cookie-parser');
 const dotenv = require('dotenv');
 const cors = require('cors');
 
-const { initializeNotificationServices } = require('./src/services/initializeNotificationServices');
+const { NotificationServices } = require('./src/services/NotificationServices');
 
 dotenv.config();
 
@@ -70,6 +70,7 @@ app.use('/assignment', require('./src/routes/assignment'));
 app.use('/upload', require('./src/routes/upload'));
 app.use('/line', require('./src/routes/line'));
 app.use('/notification', require('./src/routes/notification'));
+app.use('/search', require('./src/routes/search'));
 
 // Test route
 app.get('/', (req, res) => {
@@ -79,7 +80,7 @@ app.get('/', (req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
 
-  initializeNotificationServices();
+  NotificationServices();
 
   console.log(`Server running on port ${PORT}`);
 });

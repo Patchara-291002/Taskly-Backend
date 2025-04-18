@@ -64,13 +64,37 @@ exports.updateCourse = async (req, res) => {
 exports.deleteCourse = async (req, res) => {
     try {
         const { id } = req.params;
-        const deletedCourse = await Course.findByIdAndDelete(id);
-        if (!deletedCourse) {
-            return res.status(404).json({ message: 'Course not found' });
+        
+        // ตรวจสอบว่ามีคอร์สอยู่จริงและผู้ใช้มีสิทธิ์ลบ
+        const course = await Course.findOne({ _id: id, userId: req.userId });
+        if (!course) {
+            return res.status(404).json({ 
+                success: false,
+                message: 'Course not found or unauthorized' 
+            });
         }
-        res.status(200).json({ message: 'Course deleted successfully' });
+
+        // ใช้ Promise.all เพื่อลบพร้อมกัน
+        await Promise.all([
+            // ลบคอร์ส
+            Course.findByIdAndDelete(id),
+            
+            // ลบการบ้านทั้งหมดที่เกี่ยวข้อง
+            Assignment.deleteMany({ courseId: id })
+        ]);
+
+        res.status(200).json({ 
+            success: true,
+            message: 'Course and related assignments deleted successfully' 
+        });
+
     } catch (error) {
-        res.status(500).json({ message: 'Error deleting course', error });
+        console.error("❌ Error deleting course:", error);
+        res.status(500).json({ 
+            success: false,
+            message: 'เกิดข้อผิดพลาดในการลบคอร์ส', 
+            error: error.message 
+        });
     }
 };
 

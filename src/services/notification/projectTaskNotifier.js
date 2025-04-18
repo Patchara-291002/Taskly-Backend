@@ -71,7 +71,7 @@ class ProjectTaskNotifier {
                 // เช็คว่าเคยส่งการแจ้งเตือนสำหรับ task นี้ให้ user นี้แล้วหรือยัง
                 const existingNotification = await Notification.findOne({
                     userId: user.userId,
-                    type: 'task',
+                    type: 'task-assigned',
                     itemId: task._id
                 });
 
@@ -86,7 +86,7 @@ class ProjectTaskNotifier {
                     `⏰ เหลือเวลาอีก ${daysLeft} วัน`;
 
                 try {
-                    await NotificationSender.send(user.userId, message, 'task', task._id);
+                    await NotificationSender.send(user.userId, message, 'task-assigned', task._id);
                 } catch (sendError) {
                     console.error(`Failed to send notification to user ${user.userId}:`, sendError.message);
                 }

@@ -20,7 +20,6 @@ exports.createProject = async (req, res) => {
             users: [{ userId, role: "owner" }],
             startDate: projectStartDate,
             dueDate: projectDueDate,
-            contents: Array(5).fill({ title: "Empty", content: "Empty", isLink: false }),
             roles: [{ roleId: new mongoose.Types.ObjectId(), name: "None", color: "#D6D6D6" }]
         });
 
@@ -114,10 +113,25 @@ exports.deleteProject = async (req, res) => {
             const statuses = await Status.find({ projectId: id });
             const statusIds = statuses.map(status => status._id);
 
+            // ลบไฟล์จาก S3 ถ้ามี
+            if (project.files && project.files.length > 0) {
+                for (const file of project.files) {
+                    try {
+                        const fileUrl = new URL(file.fileAddress);
+                        const key = decodeURIComponent(fileUrl.pathname.substring(1));
+                        await deleteFileFromS3(key);
+                    } catch (deleteError) {
+                        console.error(`Failed to delete file: ${file.fileName}`, deleteError);
+                    }
+                }
+            }
+
             // ลบ Status และ Task ที่เกี่ยวข้อง
-            await Status.deleteMany({ projectId: id });
-            await Task.deleteMany({ statusId: { $in: statusIds } });
-            await Project.findByIdAndDelete(id);
+            await Promise.all([
+                Status.deleteMany({ projectId: id }),
+                Task.deleteMany({ statusId: { $in: statusIds } }),
+                Project.findByIdAndDelete(id)
+            ]);
 
             return res.status(200).json({
                 success: true,

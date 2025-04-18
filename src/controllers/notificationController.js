@@ -1,7 +1,25 @@
-const Course = require('../models/Course');
 const Notification = require('../models/Notification');
 
-// ดึงการแจ้งเตือนย้อนหลัง 5 วัน
+exports.getUnreadCount = async (req, res) => {
+    try {
+        const userId = req.userId;
+        const count = await Notification.countDocuments({
+            userId: userId,
+            status: 'unread'
+        });
+
+        res.json({
+            success: true,
+            count: count
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error getting unread count'
+        });
+    }
+};
+
 exports.getAllNotifications = async (req, res) => {
     try {
         const userId = req.userId;
@@ -9,57 +27,44 @@ exports.getAllNotifications = async (req, res) => {
         fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5);
 
         const notifications = await Notification.find({
-            userId: userId,
+            userId: userId,  // Changed from req.user._id to userId
             createdAt: { $gte: fiveDaysAgo }
         })
-        .sort({ createdAt: -1 })
-        .lean();
+        .sort({ createdAt: -1 });
 
-        res.status(200).json({
+        res.json({
             success: true,
-            notifications
+            data: notifications
         });
-
     } catch (error) {
-        console.error("❌ Error fetching notifications:", error);
         res.status(500).json({
             success: false,
-            message: 'เกิดข้อผิดพลาดในการดึงข้อมูลการแจ้งเตือน',
-            error: error.message
+            message: 'Error getting notifications'
         });
     }
 };
 
-// อัพเดทสถานะการอ่านทั้งหมด
 exports.markAllAsRead = async (req, res) => {
     try {
         const userId = req.userId;
-        const fiveDaysAgo = new Date();
-        fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5);
-
-        const result = await Notification.updateMany(
-            {
-                userId: userId,
-                status: 'unread',
-                createdAt: { $gte: fiveDaysAgo }
+        await Notification.updateMany(
+            { 
+                userId: userId,  // Changed from req.user._id to userId
+                status: 'unread'
             },
-            {
+            { 
                 $set: { status: 'read' }
             }
         );
 
-        res.status(200).json({
+        res.json({
             success: true,
-            message: 'อัพเดตสถานะการอ่านทั้งหมดแล้ว',
-            modifiedCount: result.modifiedCount
+            message: 'All notifications marked as read'
         });
-
     } catch (error) {
-        console.error("❌ Error marking notifications as read:", error);
         res.status(500).json({
             success: false,
-            message: 'เกิดข้อผิดพลาดในการอัพเดตสถานะการอ่าน',
-            error: error.message
+            message: 'Error marking notifications as read'
         });
     }
 };
