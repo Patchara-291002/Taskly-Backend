@@ -23,8 +23,9 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
   exposedHeaders: ['Set-Cookie']
 }));
-app.use(express.json());
+
 app.use(cookieParser());
+app.use(express.json());
 
 
 // Session setup

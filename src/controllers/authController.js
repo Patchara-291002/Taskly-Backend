@@ -204,47 +204,38 @@ exports.lineLogin = (req, res) => {
     domain: process.env.NODE_ENV === "production" ? '.herokuapp.com' : undefined
   });
 
-  const lineLoginUrl = `https://access.line.me/oauth2/v2.1/authorize?response_type=code&client_id=${process.env.LINE_LOGIN_CHANNEL_ID}&redirect_uri=${encodeURIComponent(process.env.LINE_CALLBACK_URL)}&state=${state}&scope=profile%20openid`;
+  // Build LINE login URL properly
+  const params = new URLSearchParams({
+    response_type: 'code',
+    client_id: process.env.LINE_LOGIN_CHANNEL_ID,
+    redirect_uri: process.env.LINE_CALLBACK_URL,
+    state: state,
+    scope: 'profile openid'
+  });
 
+  const lineLoginUrl = `https://access.line.me/oauth2/v2.1/authorize?${params}`;
   console.log('Setting lineState cookie:', state);
-
-  res.redirect(`${lineLoginUrl}&app_state=${state}`);
+  res.redirect(lineLoginUrl);
 };
 
 exports.lineCallback = async (req, res) => {
   try {
-    const { code, state, app_state } = req.query;
-    console.log('Received state:', state);
-    console.log('App state:', app_state);
+    const { code, state } = req.query;
+    console.log('Received code and state:', { code, state });
 
-    if (state !== app_state) {
-      console.log("State mismatch: received", state, "expected", app_state);
+    // Simple state check
+    if (process.env.NODE_ENV === 'production' && state !== req.cookies.lineState) {
+      console.log('State mismatch:', { 
+        received: state, 
+        expected: req.cookies.lineState 
+      });
       return res.status(400).json({
         success: false,
         error: 'invalid_state'
       });
     }
 
-    if(process.env.NODE_ENV !== 'production') {
-      console.log('Skipping state check in development');
-    } else if (state !== req.cookies.lineState) {
-      console.log("State mismatch: received", state, "expected", req.cookies.lineState);
-      return res.status(400).json({
-        success: false,
-        error: 'invalid_state'
-      });
-    }
-
-    // ตรวจสอบ state เพื่อป้องกัน CSRF
-    if (state !== req.cookies.lineState) {
-      console.log("State mismatch: received", state, "expected", req.cookies.lineState);
-      return res.status(400).json({
-        success: false,
-        error: 'invalid_state'
-      });
-    }
-
-    // แลกโค้ดเพื่อรับ token
+    // Exchange code for token
     const tokenResponse = await axios({
       method: 'post',
       url: 'https://api.line.me/oauth2/v2.1/token',
@@ -263,7 +254,7 @@ exports.lineCallback = async (req, res) => {
     const { access_token } = tokenResponse.data;
     console.log("LINE access token received");
 
-    // ดึงข้อมูลผู้ใช้จาก LINE
+    // Get user profile from LINE
     const profileResponse = await axios({
       method: 'get',
       url: 'https://api.line.me/v2/profile',
@@ -275,7 +266,7 @@ exports.lineCallback = async (req, res) => {
     const { userId: lineUserId, displayName: name, pictureUrl: profile } = profileResponse.data;
     console.log("LINE profile received:", { name, lineUserId });
 
-    // ค้นหาหรือสร้างผู้ใช้
+    // Find or create user
     let user = await User.findOne({ lineUserId });
 
     if (!user) {
@@ -289,25 +280,34 @@ exports.lineCallback = async (req, res) => {
       await user.save();
       console.log("New user created");
     } else {
-      console.log("Existing user found");
+      // Update existing user's info
+      user.name = name;
+      user.profile = profile;
+      await user.save();
+      console.log("Existing user updated");
     }
 
-    // สร้าง JWT token
+    // Create JWT token
     const token = jwt.sign(
       { id: user._id },
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
 
-    // ตั้งค่า cookie
+    // Clear LINE state cookie
+    res.clearCookie('lineState');
+
+    // Set auth token cookie
     res.cookie("token", token, {
       httpOnly: true,
       secure: true,
       sameSite: 'none',
-      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      path: '/',
+      domain: process.env.NODE_ENV === "production" ? '.herokuapp.com' : undefined
     });
 
-    // ส่งข้อมูลกลับแบบ JSON
+    // Send response
     return res.status(200).json({
       success: true,
       token,
