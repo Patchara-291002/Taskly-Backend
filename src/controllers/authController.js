@@ -193,8 +193,12 @@ exports.getUserInfo = async (req, res) => {
 
 exports.lineLogin = (req, res) => {
   const state = crypto.randomBytes(16).toString('hex');
-  // เก็บ state ไว้ใน cookie เพื่อป้องกัน CSRF
-  res.cookie('lineState', state, { maxAge: 600000, httpOnly: true });
+  res.cookie('lineState', state, {
+    maxAge: 600000,
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax"
+  });
 
   const lineLoginUrl = `https://access.line.me/oauth2/v2.1/authorize?response_type=code&client_id=${process.env.LINE_LOGIN_CHANNEL_ID}&redirect_uri=${encodeURIComponent(process.env.LINE_CALLBACK_URL)}&state=${state}&scope=profile%20openid`;
   res.redirect(lineLoginUrl);
@@ -203,13 +207,13 @@ exports.lineLogin = (req, res) => {
 exports.lineCallback = async (req, res) => {
   try {
     const { code, state } = req.query;
-    
+
     // ตรวจสอบ state เพื่อป้องกัน CSRF
     if (state !== req.cookies.lineState) {
       console.log("State mismatch: received", state, "expected", req.cookies.lineState);
       return res.status(400).redirect(`${process.env.FRONTEND_URL}/login?error=invalid_state`);
     }
-    
+
     // แลกโค้ดเพื่อรับ token
     const tokenResponse = await axios({
       method: 'post',
@@ -225,9 +229,9 @@ exports.lineCallback = async (req, res) => {
         client_secret: process.env.LINE_LOGIN_CHANNEL_SECRET
       })
     });
-    
-    const { access_token, id_token } = tokenResponse.data;
-    
+
+    const { access_token } = tokenResponse.data;
+
     // ดึงข้อมูลผู้ใช้จาก LINE
     const profileResponse = await axios({
       method: 'get',
@@ -236,40 +240,41 @@ exports.lineCallback = async (req, res) => {
         Authorization: `Bearer ${access_token}`
       }
     });
-    
+
     const { userId: lineUserId, displayName: name, pictureUrl: profile } = profileResponse.data;
-    
-    // ค้นหาผู้ใช้ที่มี LINE ID นี้
+
+    // ค้นหาหรือสร้างผู้ใช้
     let user = await User.findOne({ lineUserId });
-    
+
     if (!user) {
-      // สร้างผู้ใช้ใหม่ถ้ายังไม่มี
       user = new User({
         name,
-        email: `line_${lineUserId}@example.com`, // สร้าง email จำลอง
+        email: `line_${lineUserId}@taskly.app`,
         lineUserId,
         profile,
-        isVerified: true // ไม่ต้องยืนยันอีเมล
+        isVerified: true // LINE users are automatically verified
       });
-      
       await user.save();
     }
-    
-    // สร้าง JWT token - แก้ไขตรงนี้ให้สอดคล้องกับ login ปกติ
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
-    
-    // ส่ง token ให้ frontend เหมือนกับ login ปกติ
+
+    // สร้าง JWT token เหมือนกับ login ปกติ
+    const token = jwt.sign(
+      { id: user._id }, 
+      process.env.JWT_SECRET, 
+      { expiresIn: '7d' }
+    );
+
+    // ตั้งค่า cookie
     res.cookie("token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "Strict",
-      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 วัน
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     });
-    
-    // ส่งกลับไปยัง Frontend
-    const redirectUrl = `${process.env.FRONTEND_URL}/login/line-callback?token=${token}`;
-    res.redirect(redirectUrl);
-    
+
+    // redirect กลับไปที่ frontend พร้อม token
+    res.redirect(`${process.env.FRONTEND_URL}/login/line/callback?token=${token}`);
+
   } catch (error) {
     console.error('LINE login error:', error.response?.data || error.message);
     res.redirect(`${process.env.FRONTEND_URL}/login?error=line_failed`);
