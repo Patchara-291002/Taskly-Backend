@@ -11,7 +11,7 @@ exports.createStatus = async (req, res) => {
             return res.status(404).json({ message: 'Project not found' });
         }
 
-        // ✅ ตรวจสอบว่า isDone มีอยู่แล้วในโปรเจคหรือไม่
+        // ตรวจสอบ isDone
         if (isDone) {
             const existingDoneStatus = await Status.findOne({ projectId, isDone: true });
             if (existingDoneStatus) {
@@ -19,8 +19,26 @@ exports.createStatus = async (req, res) => {
             }
         }
 
-        const lastPosition = await Status.find({ projectId }).sort({ position: -1 }).limit(1);
-        const newPosition = lastPosition.length > 0 ? lastPosition[0].position + 1 : 1;
+        // หา position สุดท้ายและตำแหน่งของ isDone status (ถ้ามี)
+        const statuses = await Status.find({ projectId }).sort({ position: 1 });
+        const doneStatus = statuses.find(s => s.isDone);
+
+        let newPosition;
+        if (isDone) {
+            // ถ้าเป็น isDone ให้ไปอยู่ท้ายสุด
+            newPosition = statuses.length + 1;
+        } else if (doneStatus) {
+            // ถ้าไม่ใช่ isDone และมี doneStatus อยู่แล้ว ให้แทรกก่อน doneStatus
+            newPosition = doneStatus.position;
+            // เลื่อน position ของ status ที่อยู่หลังจากตำแหน่งใหม่ (รวมถึง doneStatus)
+            await Status.updateMany(
+                { projectId, position: { $gte: newPosition } },
+                { $inc: { position: 1 } }
+            );
+        } else {
+            // ถ้าไม่มี doneStatus ให้ต่อท้ายตามปกติ
+            newPosition = statuses.length + 1;
+        }
 
         const newStatus = new Status({
             projectId,
@@ -173,6 +191,7 @@ exports.updateStatusPosition = async (req, res) => {
         const session = await mongoose.startSession();
         session.startTransaction();
 
+        // หา status ที่จะย้ายและ status ทั้งหมดในโปรเจค
         const targetStatus = await Status.findById(id).session(session);
         if (!targetStatus) {
             await session.abortTransaction();
@@ -180,46 +199,61 @@ exports.updateStatusPosition = async (req, res) => {
             return res.status(404).json({ message: 'Status not found' });
         }
 
-        if (targetStatus.isDone) {
-            await session.abortTransaction();
-            session.endSession();
-            return res.status(400).json({ message: 'Cannot move a "Done" status' });
-        }
+        const statuses = await Status.find({ projectId }).sort({ position: 1 }).session(session);
+        const doneStatus = statuses.find(s => s.isDone);
 
-        const currentPosition = targetStatus.position;
-
-        const statusesInProject = await Status.find({ projectId }).sort({ position: 1 }).session(session);
-        if (position < 1 || position > statusesInProject.length) {
+        // ตรวจสอบตำแหน่งที่จะย้ายไป
+        if (position < 1 || position > statuses.length) {
             await session.abortTransaction();
             session.endSession();
             return res.status(400).json({ message: 'Invalid position value' });
         }
 
+        // ตรวจสอบว่าจะย้ายไปเกิน isDone status หรือไม่
+        if (doneStatus && position >= doneStatus.position && !targetStatus.isDone) {
+            await session.abortTransaction();
+            session.endSession();
+            return res.status(400).json({ message: 'Cannot move status beyond Done status' });
+        }
+
+        const currentPosition = targetStatus.position;
         if (position === currentPosition) {
             await session.abortTransaction();
             session.endSession();
             return res.status(200).json({ message: 'Position is the same, no update needed' });
         }
 
-        await Status.bulkWrite(
-            statusesInProject
-                .filter(status => status.position >= position && status.position < currentPosition)
-                .map(status => ({
-                    updateOne: {
-                        filter: { _id: status._id },
-                        update: { $inc: { position: 1 } }
-                    }
-                })),
-            { session }
-        );
+        // อัพเดตตำแหน่งของ status อื่นๆ
+        if (position < currentPosition) {
+            await Status.updateMany(
+                {
+                    projectId,
+                    position: { $gte: position, $lt: currentPosition }
+                },
+                { $inc: { position: 1 } },
+                { session }
+            );
+        } else {
+            await Status.updateMany(
+                {
+                    projectId,
+                    position: { $gt: currentPosition, $lte: position }
+                },
+                { $inc: { position: -1 } },
+                { session }
+            );
+        }
 
         targetStatus.position = position;
-        await targetStatus.save();
+        await targetStatus.save({ session });
 
         await session.commitTransaction();
         session.endSession();
 
-        res.status(200).json({ message: 'Position updated successfully' });
+        res.status(200).json({
+            success: true,
+            message: 'Position updated successfully'
+        });
     } catch (error) {
         console.error('Failed to update position:', error);
         res.status(500).json({ message: 'Failed to update position', error });

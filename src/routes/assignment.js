@@ -4,6 +4,8 @@ const authenticate = require('../middleware/authenticate');
 const assignmentController = require('../controllers/assignmentController');
 const uploadController = require('../controllers/uploadController');
 
+router.get('/incomplete', authenticate, assignmentController.getIncompleteAssignments);
+
 router.get('/', authenticate, assignmentController.getAllByUserId);
 router.post('/create', authenticate, assignmentController.createAssignment);
 router.put('/update/:id', authenticate, assignmentController.updateAssignment);

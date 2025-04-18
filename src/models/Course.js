@@ -4,7 +4,6 @@ const courseSchema = new mongoose.Schema(
         courseName: { type: String, required: true },
         courseCode: { type: String },
         courseColor: { type: String },
-        courseType: { type: String, enum: ["default", "Math", "Languages"], default: "default"},
         instructorName: { type: String },
         location: { type: String },
         day: { type: String },

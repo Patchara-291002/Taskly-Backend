@@ -51,13 +51,6 @@ exports.updateAssignment = async (req, res) => {
             return res.status(404).json({ message: 'Assignment not found' });
         }
 
-        // ตรวจสอบสิทธิ์การแก้ไขว่ามาจากเจ้าของจริงหรือไม่
-        if (assignment.userId.toString() !== req.userId) {
-            return res.status(403).json({ message: 'Unauthorized to update this assignment' });
-        }
-
-        // โดยปกติคุณสามารถแก้ไขฟิลด์ links ผ่าน update ได้เลย
-        // เช่น client ส่งมาเป็น array ใหม่ของ links เพื่อแทนที่ข้อมูลเดิม
         const updatedAssignment = await Assignment.findByIdAndUpdate(id, updatedData, { new: true });
         res.status(200).json(updatedAssignment);
     } catch (error) {
@@ -72,11 +65,6 @@ exports.deleteAssignment = async (req, res) => {
         if (!assignment) {
             return res.status(404).json({ message: 'Assignment not found' });
         }
-
-        if (assignment.userId.toString() !== req.userId) {
-            return res.status(403).json({ message: 'Unauthorized to delete this assignment' });
-        }
-
         await Assignment.findByIdAndDelete(id);
         res.status(200).json({ message: 'Assignment deleted successfully' });
     } catch (error) {
@@ -178,24 +166,73 @@ exports.addImageToAssignment = async (req, res) => {
 
 exports.deleteLinkFromAssignment = async (req, res) => {
     try {
-      const { id, linkId } = req.params; // id = assignment id, linkId = _id ของ link ที่ต้องการลบ
-  
-      // ค้นหา assignment และตรวจสอบสิทธิ์ผู้ใช้
-      const assignment = await Assignment.findById(id);
-      if (!assignment) {
-        return res.status(404).json({ message: 'Assignment not found' });
-      }
-      if (assignment.userId.toString() !== req.userId) {
-        return res.status(403).json({ message: 'Unauthorized to delete link from this assignment' });
-      }
-  
-      // ลบ link ที่มี _id ตรงกับ linkId จาก array links
-      assignment.links.pull({ _id: linkId });
-  
-      await assignment.save();
-      res.status(200).json({ message: 'Link deleted successfully', assignment });
+        const { id, linkId } = req.params; // id = assignment id, linkId = _id ของ link ที่ต้องการลบ
+
+        // ค้นหา assignment และตรวจสอบสิทธิ์ผู้ใช้
+        const assignment = await Assignment.findById(id);
+        if (!assignment) {
+            return res.status(404).json({ message: 'Assignment not found' });
+        }
+        if (assignment.userId.toString() !== req.userId) {
+            return res.status(403).json({ message: 'Unauthorized to delete link from this assignment' });
+        }
+
+        // ลบ link ที่มี _id ตรงกับ linkId จาก array links
+        assignment.links.pull({ _id: linkId });
+
+        await assignment.save();
+        res.status(200).json({ message: 'Link deleted successfully', assignment });
     } catch (error) {
-      res.status(500).json({ message: 'Error deleting link from assignment', error });
+        res.status(500).json({ message: 'Error deleting link from assignment', error });
     }
-  };
-  
+};
+
+exports.getIncompleteAssignments = async (req, res) => {
+    try {
+        const userId = req.userId;
+
+        const assignments = await Assignment.find({
+            userId: userId,
+            status: { $ne: "Done" }  
+        })
+        .populate('courseId', 'courseName courseCode courseColor')
+        .sort({ endDate: 1 })
+        .lean();
+
+        if (!assignments || assignments.length === 0) {
+            return res.status(200).json({
+                success: true,
+                assignments: []
+            });
+        }
+
+        const formattedAssignments = assignments.map(assignment => ({
+            _id: assignment._id,
+            assignmentName: assignment.assignmentName,
+            description: assignment.description,
+            status: assignment.status,
+            startDate: assignment.startDate,
+            endDate: assignment.endDate,
+            course: assignment.courseId ? {
+                id: assignment.courseId._id,
+                name: assignment.courseId.courseName,
+                code: assignment.courseId.courseCode,
+                color: assignment.courseId.courseColor
+            } : null,
+            links: assignment.links || []
+        }));
+
+        res.status(200).json({
+            success: true,
+            assignments: formattedAssignments
+        });
+
+    } catch (error) {
+        console.error("❌ Error fetching incomplete assignments:", error);
+        res.status(500).json({
+            success: false,
+            message: 'เกิดข้อผิดพลาดในการดึงข้อมูลงานที่ยังไม่เสร็จ',
+            error: error.message
+        });
+    }
+};

@@ -57,13 +57,11 @@ exports.linkLineAccount = async (req, res) => {
     }
 };
 
-exports.sendLineNotification = async (userId, message = 'Hi') => {
+exports.sendLineNotification = async (lineUserId, message = 'Hi') => {
     try {
-        const user = await User.findById(userId);
-
-        if (!user || !user.lineUserId) {
-            console.log('No Line user ID found');
-            return { success: false, message: 'No LINE user ID found for this user' };
+        if (!lineUserId) {
+            console.log('No Line user ID provided');
+            return { success: false, message: 'LINE user ID is required' };
         }
 
         try {
@@ -75,7 +73,7 @@ exports.sendLineNotification = async (userId, message = 'Hi') => {
                     'Authorization': `Bearer ${process.env.LINE_CHANNEL_ACCESS_TOKEN}`
                 },
                 data: {
-                    to: user.lineUserId,
+                    to: lineUserId,  // ใช้ lineUserId โดยตรง
                     messages: [
                         {
                             type: 'text',
@@ -84,13 +82,13 @@ exports.sendLineNotification = async (userId, message = 'Hi') => {
                     ]
                 }
             });
-            
+
             console.log('LINE notification sent successfully');
             return { success: true, data: response.data };
         } catch (apiError) {
             console.error('LINE API Error:', apiError.response?.data || apiError.message);
-            return { 
-                success: false, 
+            return {
+                success: false,
                 error: apiError.response?.data?.message || apiError.message,
                 details: apiError.response?.data
             };

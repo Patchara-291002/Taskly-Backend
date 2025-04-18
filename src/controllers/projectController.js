@@ -20,7 +20,6 @@ exports.createProject = async (req, res) => {
             users: [{ userId, role: "owner" }],
             startDate: projectStartDate,
             dueDate: projectDueDate,
-            contents: Array(5).fill({ title: "Empty", content: "Empty", isLink: false }),
             roles: [{ roleId: new mongoose.Types.ObjectId(), name: "None", color: "#D6D6D6" }]
         });
 
@@ -30,7 +29,7 @@ exports.createProject = async (req, res) => {
         const statusData = [
             { statusName: "Todo", color: "#FF5733", position: 1, isDone: false },
             { statusName: "Doing", color: "#33FF57", position: 2, isDone: false },
-            { statusName: "Done", color: "#3357FF", position: 3, isDone: true } 
+            { statusName: "Done", color: "#3357FF", position: 3, isDone: true }
         ];
 
         // ✅ สร้าง Status ในฐานข้อมูล
@@ -87,27 +86,76 @@ exports.updateProject = async (req, res) => {
 exports.deleteProject = async (req, res) => {
     try {
         const { id } = req.params;
+        const userId = req.userId;
 
-        // 🔹 ดึงข้อมูล Status ทั้งหมดของ Project ก่อนลบ
-        const statuses = await Status.find({ projectId: id });
-
-        // 🔹 ลบ Project
-        const deletedProject = await Project.findByIdAndDelete(id);
-        if (!deletedProject) {
-            return res.status(404).json({ message: 'Project not found' });
+        const project = await Project.findById(id);
+        if (!project) {
+            return res.status(404).json({
+                success: false,
+                message: 'ไม่พบโปรเจกต์'
+            });
         }
 
-        // 🔹 ดึง `statusId` ทั้งหมดเพื่อใช้ลบ Tasks
-        const statusIds = statuses.map(status => status._id);
+        // ตรวจสอบว่าผู้ใช้เป็น owner หรือไม่
+        const userInProject = project.users.find(user =>
+            user.userId.toString() === userId
+        );
 
-        // 🔹 ลบ Status และ Task ที่เกี่ยวข้อง
-        await Status.deleteMany({ projectId: id });
-        await Task.deleteMany({ statusId: { $in: statusIds } });
+        if (!userInProject) {
+            return res.status(404).json({
+                success: false,
+                message: 'ไม่พบผู้ใช้ในโปรเจกต์'
+            });
+        }
 
-        res.status(200).json({ message: 'Project deleted successfully' });
+        if (userInProject.role === 'owner') {
+            // ถ้าเป็น owner ให้ลบทั้งโปรเจค
+            const statuses = await Status.find({ projectId: id });
+            const statusIds = statuses.map(status => status._id);
+
+            // ลบไฟล์จาก S3 ถ้ามี
+            if (project.files && project.files.length > 0) {
+                for (const file of project.files) {
+                    try {
+                        const fileUrl = new URL(file.fileAddress);
+                        const key = decodeURIComponent(fileUrl.pathname.substring(1));
+                        await deleteFileFromS3(key);
+                    } catch (deleteError) {
+                        console.error(`Failed to delete file: ${file.fileName}`, deleteError);
+                    }
+                }
+            }
+
+            // ลบ Status และ Task ที่เกี่ยวข้อง
+            await Promise.all([
+                Status.deleteMany({ projectId: id }),
+                Task.deleteMany({ statusId: { $in: statusIds } }),
+                Project.findByIdAndDelete(id)
+            ]);
+
+            return res.status(200).json({
+                success: true,
+                message: 'ลบโปรเจกต์สำเร็จ'
+            });
+        } else {
+            // ถ้าเป็น member ให้ลบแค่ผู้ใช้ออกจากโปรเจค
+            project.users = project.users.filter(user =>
+                user.userId.toString() !== userId
+            );
+            await project.save();
+
+            return res.status(200).json({
+                success: true,
+                message: 'ออกจากโปรเจกต์สำเร็จ'
+            });
+        }
     } catch (error) {
-        console.error("❌ Failed to delete project:", error);
-        res.status(500).json({ message: 'Failed to delete project', error: error.message });
+        console.error("❌ Error in project operation:", error);
+        res.status(500).json({
+            success: false,
+            message: 'เกิดข้อผิดพลาดในการดำเนินการ',
+            error: error.message
+        });
     }
 };
 
@@ -120,7 +168,7 @@ exports.getProjectByUserId = async (req, res) => {
 
         const projectsWithProgress = await Promise.all(projects.map(async (project) => {
             const statuses = await Status.find({ projectId: project._id });
-            const doneStatus = statuses.find(status => status.isDone); 
+            const doneStatus = statuses.find(status => status.isDone);
             const statusIds = statuses.map(status => status._id);
 
             const tasks = await Task.find({ statusId: { $in: statusIds } });
@@ -167,26 +215,48 @@ exports.getProjectById = async (req, res) => {
 
         // 🔹 ดึงข้อมูล Status ทั้งหมดของ Project
         const statuses = await Status.find({ projectId: id }).sort({ position: 1 });
+        const doneStatus = statuses.find(status => status.isDone);
 
-        // 🔹 ดึง Tasks ทั้งหมดของ Project (ไม่ผูกกับ Status โดยตรง)
-        const tasks = await Task.find({ statusId: { $in: statuses.map(status => status._id) } })
+        // 🔹 ดึง Tasks ทั้งหมดของ Project
+        const tasks = await Task.find({
+            statusId: { $in: statuses.map(status => status._id) }
+        })
             .populate({
                 path: 'assignees',
                 select: 'name email profile'
             })
-            .lean(); // 🔥 ใช้ lean() เพื่อลด Overhead
+            .lean();
 
-        // 🔹 สร้างโครงสร้าง Response ใหม่ (แยก Tasks ออกมา)
+        // 🔹 คำนวณ Progress
+        let totalWeight = 0;
+        let completedWeight = 0;
+
+        tasks.forEach(task => {
+            const priority = task.priority || 1;
+            totalWeight += priority;
+
+            if (doneStatus && task.statusId.equals(doneStatus._id)) {
+                completedWeight += priority;
+            }
+        });
+
+        const progress = totalWeight > 0 ? Math.round((completedWeight / totalWeight) * 100) : 0;
+
+        // 🔹 สร้างโครงสร้าง Response
         const projectWithBoard = {
             ...project.toObject(),
-            statuses: statuses.map(status => status.toObject()), // ✅ Status แยกออกมา
-            tasks: tasks // ✅ Tasks อยู่แยกจาก Status
+            progress: progress,
+            statuses: statuses.map(status => status.toObject()),
+            tasks: tasks
         };
 
         res.status(200).json(projectWithBoard);
     } catch (error) {
         console.error("Error fetching project:", error);
-        return res.status(500).json({ message: 'Failed to fetch the project', error: error.message });
+        return res.status(500).json({
+            message: 'Failed to fetch the project',
+            error: error.message
+        });
     }
 };
 
@@ -196,25 +266,51 @@ exports.getProjectById = async (req, res) => {
 exports.addUserToProject = async (req, res) => {
     try {
         const { id } = req.params;
-        const userId = req.userId; // ใช้ userId จาก Token
-        const { role } = req.body; // รับเฉพาะ role
+        const userId = req.userId;
 
+        const project = await Project.findById(id);
+        if (!project) {
+            return res.status(404).json({
+                success: false,
+                message: 'ไม่พบโปรเจกต์'
+            });
+        }
+
+        // ตรวจสอบว่าผู้ใช้อยู่ในโปรเจคแล้วหรือไม่
+        const isUserAlreadyInProject = project.users.some(user =>
+            user.userId.toString() === userId
+        );
+
+        if (isUserAlreadyInProject) {
+            return res.status(200).json({
+                success: true,
+                message: 'ผู้ใช้อยู่ในโปรเจคอยู่แล้ว',
+                project
+            });
+        }
+
+        // เพิ่มผู้ใช้ใหม่ โดยกำหนดให้เป็น member โดยอัตโนมัติ
         const updatedProject = await Project.findByIdAndUpdate(
             id,
             {
-                $push: { users: { userId, role } },
+                $push: { users: { userId, role: "member" } },
                 updatedAt: Date.now()
             },
             { new: true }
         );
 
-        if (!updatedProject) {
-            return res.status(404).json({ message: 'Project not found' });
-        }
-
-        res.status(200).json(updatedProject);
+        res.status(201).json({
+            success: true,
+            message: 'เพิ่มผู้ใช้เข้าโปรเจคสำเร็จ',
+            project: updatedProject
+        });
     } catch (error) {
-        return res.status(500).json({ message: 'Failed to add user to project', error });
+        console.error("❌ Error adding user to project:", error);
+        return res.status(500).json({
+            success: false,
+            message: 'เกิดข้อผิดพลาดในการเพิ่มผู้ใช้',
+            error: error.message
+        });
     }
 };
 
@@ -222,25 +318,25 @@ exports.addFileToProject = async (req, res) => {
     try {
         const { id } = req.params;
         if (!req.file) {
-            return res.status(400).json({ 
+            return res.status(400).json({
                 success: false,
-                message: 'ไม่พบไฟล์ที่อัปโหลด' 
+                message: 'ไม่พบไฟล์ที่อัปโหลด'
             });
         }
 
         const project = await Project.findById(id);
         if (!project) {
-            return res.status(404).json({ 
+            return res.status(404).json({
                 success: false,
-                message: 'ไม่พบโปรเจกต์' 
+                message: 'ไม่พบโปรเจกต์'
             });
         }
 
         const isUserInProject = project.users.some(user => user.userId.toString() === req.userId);
         if (!isUserInProject) {
-            return res.status(403).json({ 
+            return res.status(403).json({
                 success: false,
-                message: 'ไม่มีสิทธิ์เพิ่มไฟล์ในโปรเจกต์นี้' 
+                message: 'ไม่มีสิทธิ์เพิ่มไฟล์ในโปรเจกต์นี้'
             });
         }
 
@@ -248,11 +344,11 @@ exports.addFileToProject = async (req, res) => {
         const originalFileName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
 
         // เพิ่มไฟล์ด้วยชื่อที่ถูกแปลงแล้ว
-        project.files.push({ 
+        project.files.push({
             fileName: originalFileName,
             fileAddress: req.file.location
         });
-        
+
         await project.save();
 
         res.status(200).json({
@@ -265,10 +361,10 @@ exports.addFileToProject = async (req, res) => {
         });
     } catch (error) {
         console.error("❌ Error adding file to project:", error);
-        res.status(500).json({ 
+        res.status(500).json({
             success: false,
             message: 'เกิดข้อผิดพลาดในการเพิ่มไฟล์',
-            error: error.message 
+            error: error.message
         });
     }
 };
@@ -279,27 +375,27 @@ exports.deleteFileFromProject = async (req, res) => {
 
         const project = await Project.findById(id);
         if (!project) {
-            return res.status(404).json({ 
+            return res.status(404).json({
                 success: false,
-                message: 'ไม่พบโปรเจกต์' 
+                message: 'ไม่พบโปรเจกต์'
             });
         }
 
         // ตรวจสอบสิทธิ์ผู้ใช้
         const isUserInProject = project.users.some(user => user.userId.toString() === req.userId);
         if (!isUserInProject) {
-            return res.status(403).json({ 
+            return res.status(403).json({
                 success: false,
-                message: 'ไม่มีสิทธิ์ลบไฟล์ในโปรเจกต์นี้' 
+                message: 'ไม่มีสิทธิ์ลบไฟล์ในโปรเจกต์นี้'
             });
         }
 
         // หาไฟล์ที่จะลบ
         const fileToDelete = project.files.find(file => file._id.toString() === fileId);
         if (!fileToDelete) {
-            return res.status(404).json({ 
+            return res.status(404).json({
                 success: false,
-                message: 'ไม่พบไฟล์ที่ต้องการลบ' 
+                message: 'ไม่พบไฟล์ที่ต้องการลบ'
             });
         }
 
@@ -319,7 +415,7 @@ exports.deleteFileFromProject = async (req, res) => {
             project.files.pull({ _id: fileId });
             await project.save();
 
-            res.status(200).json({ 
+            res.status(200).json({
                 success: true,
                 message: 'ลบไฟล์สำเร็จ',
                 deletedFile: fileToDelete
@@ -330,10 +426,10 @@ exports.deleteFileFromProject = async (req, res) => {
         }
     } catch (error) {
         console.error("❌ Error deleting file:", error);
-        res.status(500).json({ 
+        res.status(500).json({
             success: false,
-            message: 'เกิดข้อผิดพลาดในการลบไฟล์', 
-            error: error.message 
+            message: 'เกิดข้อผิดพลาดในการลบไฟล์',
+            error: error.message
         });
     }
 };
@@ -436,5 +532,60 @@ exports.deleteRoleFromProject = async (req, res) => {
         res.status(200).json({ message: 'Role deleted successfully' });
     } catch (error) {
         res.status(500).json({ message: 'Error deleting role', error });
+    }
+};
+
+exports.updateUserProjectRole = async (req, res) => {
+    try {
+        const { projectId, userId } = req.params;
+        const { roleId } = req.body;
+
+        const project = await Project.findById(projectId);
+        if (!project) {
+            return res.status(404).json({
+                success: false,
+                message: 'ไม่พบโปรเจกต์'
+            });
+        }
+
+        // ตรวจสอบว่า role ที่จะกำหนดมีอยู่ในโปรเจคหรือไม่
+        const roleExists = project.roles.some(role => role.roleId.toString() === roleId);
+        if (!roleExists) {
+            return res.status(404).json({
+                success: false,
+                message: 'ไม่พบบทบาทที่ระบุในโปรเจคนี้'
+            });
+        }
+
+        // หาและอัพเดท user's project role
+        const userIndex = project.users.findIndex(user => user.userId.toString() === userId);
+        if (userIndex === -1) {
+            return res.status(404).json({
+                success: false,
+                message: 'ไม่พบผู้ใช้ในโปรเจคนี้'
+            });
+        }
+
+        // อัพเดทบทบาทและเวลา
+        project.users[userIndex].projectRole = {
+            roleId: roleId,
+            assignedAt: new Date()
+        };
+
+        await project.save();
+
+        res.status(200).json({
+            success: true,
+            message: 'อัพเดทบทบาทสำเร็จ',
+            user: project.users[userIndex]
+        });
+
+    } catch (error) {
+        console.error("❌ Error updating user project role:", error);
+        res.status(500).json({
+            success: false,
+            message: 'เกิดข้อผิดพลาดในการอัพเดทบทบาท',
+            error: error.message
+        });
     }
 };
