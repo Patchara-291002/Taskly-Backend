@@ -13,14 +13,30 @@ dotenv.config();
 require('./src/config/passport');
 
 const app = express();
-
+app.use(cookieParser(process.env.JWT_SECRET));
 // CORS configuration
 app.use(cors({
   origin: process.env.FRONTEND_URL,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Set-Cookie'],
-  exposedHeaders: ['Set-Cookie']
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  exposedHeaders: ['Set-Cookie'],
+  preflightContinue: true
+}));
+
+app.use(session({
+  secret: process.env.JWT_SECRET,
+  resave: false,
+  saveUninitialized: false,
+  proxy: true, // Required for Heroku
+  cookie: {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'none',
+    domain: '.herokuapp.com', // Fixed domain for Heroku
+    path: '/',
+    maxAge: 24 * 60 * 60 * 1000
+  }
 }));
 
 // Add headers for cross-origin
@@ -31,23 +47,7 @@ app.use((req, res, next) => {
 });
 
 // Cookie and body parser
-app.use(cookieParser(process.env.JWT_SECRET));
 app.use(express.json());
-
-// Session setup with updated cookie settings
-app.use(session({
-  secret: process.env.JWT_SECRET || 'secret_key',
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    httpOnly: true,
-    secure: true,
-    sameSite: 'none',
-    maxAge: 24 * 60 * 60 * 1000,
-    path: '/',
-    domain: process.env.NODE_ENV === 'production' ? '.herokuapp.com' : undefined
-  }
-}));
 
 // Passport setup
 app.use(passport.initialize());
