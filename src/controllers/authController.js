@@ -198,23 +198,32 @@ exports.lineLogin = (req, res) => {
   res.cookie('lineState', state, {
     maxAge: 600000, // 10 minutes
     httpOnly: true,
-    secure: true, // Always use secure in production
+    secure: true,
     sameSite: 'none',
-    path: '/'
+    path: '/',
+    domain: process.env.NODE_ENV === "production" ? '.herokuapp.com' : undefined
   });
 
   const lineLoginUrl = `https://access.line.me/oauth2/v2.1/authorize?response_type=code&client_id=${process.env.LINE_LOGIN_CHANNEL_ID}&redirect_uri=${encodeURIComponent(process.env.LINE_CALLBACK_URL)}&state=${state}&scope=profile%20openid`;
 
   console.log('Setting lineState cookie:', state);
-  res.redirect(lineLoginUrl);
+
+  res.redirect(`${lineLoginUrl}&app_state=${state}`);
 };
 
 exports.lineCallback = async (req, res) => {
   try {
-    const { code, state } = req.query;
+    const { code, state, app_state } = req.query;
     console.log('Received state:', state);
-    console.log('Stored state:', req.cookies.lineState);
-    console.log('All cookies:', req.cookies);
+    console.log('App state:', app_state);
+
+    if (state !== app_state) {
+      console.log("State mismatch: received", state, "expected", app_state);
+      return res.status(400).json({
+        success: false,
+        error: 'invalid_state'
+      });
+    }
 
     if(process.env.NODE_ENV !== 'production') {
       console.log('Skipping state check in development');
