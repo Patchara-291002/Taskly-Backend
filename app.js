@@ -18,11 +18,14 @@ const app = express();
 app.use(express.json());
 app.use(cookieParser());
 app.use(cors({
-  origin: process.env.FRONTEND_URL,
+  origin: [
+    'https://taskly-frontend-gamma.vercel.app',
+    process.env.FRONTEND_URL
+  ],
   credentials: true,
-  // methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  // allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
-  // exposedHeaders: ['Set-Cookie']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
+  exposedHeaders: ['Set-Cookie']
 }));
 
 // Session setup
@@ -31,9 +34,10 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: process.env.NODE_ENV === 'production', // true for HTTPS
     httpOnly: true,
-    sameSite: 'none',  // Required for cross-site requests
+    secure: true,  // เปิดใช้เพราะใช้ HTTPS
+    sameSite: 'none',  // อนุญาต cross-site requests
+    domain: '.herokuapp.com',  // domain สำหรับ production
     maxAge: 24 * 60 * 60 * 1000,  // 24 hours
     path: '/'
   }
@@ -50,14 +54,14 @@ mongoose.connect(process.env.MONGO_URI, {
   w: "majority",
   connectTimeoutMS: 30000,
 })
-.then(() => {
-  console.log('MongoDB connected successfully');
-})
-.catch((err) => {
-  console.error('MongoDB connection error:', err);
-  // Exit process with failure
-  process.exit(1);
-});
+  .then(() => {
+    console.log('MongoDB connected successfully');
+  })
+  .catch((err) => {
+    console.error('MongoDB connection error:', err);
+    // Exit process with failure
+    process.exit(1);
+  });
 
 // Routes
 app.use('/auth', require('./src/routes/auth'));
