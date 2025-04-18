@@ -117,3 +117,62 @@ exports.testSendNotification = async (req, res) => {
         res.status(500).json({ message: 'Server error', error: error.message });
     }
 };
+
+exports.handleLineCallback = async (req, res) => {
+    try {
+        const { code, state } = req.query;
+
+        if (!code) {
+            return res.redirect(`${process.env.FRONTEND_URL}/login?error=no_code`);
+        }
+
+        // Get token from LINE
+        const tokenResponse = await axios.post('https://api.line.me/oauth2/v2.1/token', {
+            grant_type: 'authorization_code',
+            code: code,
+            redirect_uri: `${process.env.BACKEND_URL}/line/callback`,
+            client_id: process.env.LINE_LOGIN_CHANNEL_ID,
+            client_secret: process.env.LINE_LOGIN_CHANNEL_SECRET
+        }, {
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            }
+        });
+
+        const accessToken = tokenResponse.data.access_token;
+
+        // Get user profile from LINE
+        const profileResponse = await axios.get('https://api.line.me/v2/profile', {
+            headers: {
+                Authorization: `Bearer ${accessToken}`
+            }
+        });
+
+        const lineProfile = profileResponse.data;
+
+        // Find or create user
+        let user = await User.findOne({ lineId: lineProfile.userId });
+
+        if (!user) {
+            user = await User.create({
+                lineId: lineProfile.userId,
+                name: lineProfile.displayName,
+                profile: lineProfile.pictureUrl
+            });
+        }
+
+        // Create JWT token
+        const token = jwt.sign(
+            { userId: user._id },
+            process.env.JWT_SECRET,
+            { expiresIn: '24h' }
+        );
+
+        // Redirect to frontend with token
+        res.redirect(`${process.env.FRONTEND_URL}/auth/callback?token=${token}`);
+
+    } catch (error) {
+        console.error('LINE callback error:', error);
+        res.redirect(`${process.env.FRONTEND_URL}/login?error=line_auth_failed`);
+    }
+};

@@ -11,4 +11,6 @@ router.post('/link', authenticate, lineController.linkLineAccount);
 // ส่งข้อความทดสอบ
 router.post('/notify', authenticate, lineController.testSendNotification);
 
+router.get('/callback', lineController.handleLineCallback);
+
 module.exports = router;
