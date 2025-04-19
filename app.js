@@ -9,11 +9,14 @@ const cors = require('cors');
 const { NotificationServices } = require('./src/services/NotificationServices');
 
 dotenv.config();
-
 require('./src/config/passport');
 
 const app = express();
+
 app.use(cookieParser(process.env.JWT_SECRET));
+
+app.use(express.json());
+
 // CORS configuration
 app.use(cors({
   origin: process.env.FRONTEND_URL,
@@ -39,15 +42,6 @@ app.use(session({
   }
 }));
 
-// Add headers for cross-origin
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Credentials', 'true');
-  res.header('Access-Control-Allow-Origin', process.env.FRONTEND_URL);
-  next();
-});
-
-// Cookie and body parser
-app.use(express.json());
 
 // Passport setup
 app.use(passport.initialize());
@@ -62,6 +56,14 @@ app.use((req, res, next) => {
   if (token) {
     req.token = token;
   }
+  next();
+});
+
+
+// Add headers for cross-origin
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Origin', process.env.FRONTEND_URL);
   next();
 });
 
