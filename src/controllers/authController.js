@@ -195,7 +195,6 @@ exports.lineLogin = (req, res) => {
   const state = crypto.randomBytes(16).toString('hex');
 
   // Store state in session
-  req.session.lineState = state;
 
   // Build LINE login URL properly
   const params = new URLSearchParams({
@@ -206,28 +205,22 @@ exports.lineLogin = (req, res) => {
     scope: 'profile openid'
   });
 
+  const clientState = { appState: state, returnTo: '/home/dashboard' };
+  const encodedClientState = Buffer.from(JSON.stringify(clientState)).toString('base64');
+
+  params.append('bot_prompt', 'normal');
+
   const lineLoginUrl = `https://access.line.me/oauth2/v2.1/authorize?${params.toString()}`;
-  console.log('Setting lineState:', state);
+  console.log('Generated LINE login URL with state:', state);
   res.redirect(lineLoginUrl);
 };
 
 exports.lineCallback = async (req, res) => {
   try {
     const { code, state } = req.query;
-    console.log('Received code and state:', { code, state });
-
-    // Simple state check
-    if (process.env.NODE_ENV === 'production' && state !== req.session.lineState) {
-      console.log('State mismatch:', {
-        received: state,
-        expected: req.session.lineState
-      });
-      return res.status(400).json({
-        success: false,
-        error: 'invalid_state'
-      });
-    }
-
+    
+    console.log('Processing LINE callback with code:', code);
+    
     // Exchange code for token
     const tokenResponse = await axios({
       method: 'post',
@@ -247,7 +240,7 @@ exports.lineCallback = async (req, res) => {
     const { access_token } = tokenResponse.data;
     console.log("LINE access token received");
 
-    // Get user profile from LINE
+    // Get user profile
     const profileResponse = await axios({
       method: 'get',
       url: 'https://api.line.me/v2/profile',
@@ -287,20 +280,9 @@ exports.lineCallback = async (req, res) => {
       { expiresIn: '7d' }
     );
 
-    // Clear LINE state cookie
-    res.clearCookie('lineState');
+    console.log("Sending JWT token to client");
 
-    // Set auth token cookie
-    res.cookie("token", token, {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'none',
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-      path: '/',
-      domain: process.env.NODE_ENV === "production" ? '.herokuapp.com' : undefined
-    });
-
-    // Send response
+    // ส่งคืน JSON response ตามที่ frontend คาดหวัง
     return res.status(200).json({
       success: true,
       token,
