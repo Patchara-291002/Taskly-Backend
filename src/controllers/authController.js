@@ -240,7 +240,7 @@ exports.lineCallback = async (req, res) => {
     const { access_token } = tokenResponse.data;
     console.log("LINE access token received");
 
-    // Get user profile
+    // Get user profile from LINE
     const profileResponse = await axios({
       method: 'get',
       url: 'https://api.line.me/v2/profile',
@@ -280,26 +280,13 @@ exports.lineCallback = async (req, res) => {
       { expiresIn: '7d' }
     );
 
-    console.log("Sending JWT token to client");
-
-    // ส่งคืน JSON response ตามที่ frontend คาดหวัง
-    return res.status(200).json({
-      success: true,
-      token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        profile: user.profile
-      }
-    });
+    // ส่ง redirect กลับไปที่ frontend พร้อม token แทนการส่ง JSON
+    const redirectUrl = `${process.env.FRONTEND_URL}/login/line-callback?token=${token}`;
+    console.log("Redirecting to frontend with token:", redirectUrl);
+    return res.redirect(redirectUrl);
 
   } catch (error) {
     console.error('LINE login error:', error.response?.data || error.message);
-    return res.status(500).json({
-      success: false,
-      error: 'line_login_failed',
-      message: error.message
-    });
+    return res.redirect(`${process.env.FRONTEND_URL}/login?error=line_login_failed`);
   }
 };
