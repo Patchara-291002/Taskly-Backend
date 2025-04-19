@@ -13,35 +13,35 @@ require('./src/config/passport');
 
 const app = express();
 
-app.use(cookieParser(process.env.JWT_SECRET));
+// ย้าย cookieParser มาก่อน middleware อื่นๆ
+app.use(cookieParser());
 
 app.use(express.json());
 
-// CORS configuration
+// แก้ไข CORS configuration ให้รองรับ credentials
 app.use(cors({
-  origin: process.env.FRONTEND_URL,
+  origin: process.env.FRONTEND_URL, // ต้องระบุ origin ที่แน่นอน ไม่สามารถใช้ * กับ credentials: true
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  exposedHeaders: ['Set-Cookie'],
-  preflightContinue: true
+  allowedHeaders: ['Content-Type', 'Authorization', 'Set-Cookie'],
+  exposedHeaders: ['Set-Cookie']
 }));
 
+// ปรับ Session configuration
 app.use(session({
-  secret: process.env.JWT_SECRET,
+  secret: process.env.JWT_SECRET || 'secret_key',
   resave: false,
   saveUninitialized: false,
   proxy: true, // Required for Heroku
   cookie: {
     httpOnly: true,
     secure: true,
-    sameSite: 'none',
-    domain: '.herokuapp.com', // Fixed domain for Heroku
+    sameSite: 'none', // จำเป็นสำหรับ cross-site requests
     path: '/',
     maxAge: 24 * 60 * 60 * 1000
+    // ลบ domain เพื่อให้ browser จัดการเอง
   }
 }));
-
 
 // Passport setup
 app.use(passport.initialize());
@@ -59,13 +59,7 @@ app.use((req, res, next) => {
   next();
 });
 
-
-// Add headers for cross-origin
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Credentials', 'true');
-  res.header('Access-Control-Allow-Origin', process.env.FRONTEND_URL);
-  next();
-});
+// ลบ manual CORS headers ที่ซ้ำซ้อน
 
 // DB Connection
 mongoose.connect(process.env.MONGO_URI, {

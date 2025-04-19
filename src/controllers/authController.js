@@ -194,15 +194,8 @@ exports.getUserInfo = async (req, res) => {
 exports.lineLogin = (req, res) => {
   const state = crypto.randomBytes(16).toString('hex');
 
-  // Set cookie with proper options for cross-origin
-  res.cookie('lineState', state, {
-    maxAge: 600000, // 10 minutes
-    httpOnly: true,
-    secure: true,
-    sameSite: 'none',
-    path: '/',
-    domain: process.env.NODE_ENV === "production" ? '.herokuapp.com' : undefined
-  });
+  // Store state in session
+  req.session.lineState = state;
 
   // Build LINE login URL properly
   const params = new URLSearchParams({
@@ -213,8 +206,8 @@ exports.lineLogin = (req, res) => {
     scope: 'profile openid'
   });
 
-  const lineLoginUrl = `https://access.line.me/oauth2/v2.1/authorize?${params}`;
-  console.log('Setting lineState cookie:', state);
+  const lineLoginUrl = `https://access.line.me/oauth2/v2.1/authorize?${params.toString()}`;
+  console.log('Setting lineState:', state);
   res.redirect(lineLoginUrl);
 };
 
@@ -224,10 +217,10 @@ exports.lineCallback = async (req, res) => {
     console.log('Received code and state:', { code, state });
 
     // Simple state check
-    if (process.env.NODE_ENV === 'production' && state !== req.cookies.lineState) {
-      console.log('State mismatch:', { 
-        received: state, 
-        expected: req.cookies.lineState 
+    if (process.env.NODE_ENV === 'production' && state !== req.session.lineState) {
+      console.log('State mismatch:', {
+        received: state,
+        expected: req.session.lineState
       });
       return res.status(400).json({
         success: false,
