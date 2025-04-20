@@ -20,11 +20,10 @@ app.use(express.json());
 
 // แก้ไข CORS configuration ให้รองรับ credentials
 app.use(cors({
-  origin: process.env.FRONTEND_URL, // ต้องระบุ origin ที่แน่นอน ไม่สามารถใช้ * กับ credentials: true
+  origin: process.env.FRONTEND_URL,
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Set-Cookie'],
-  exposedHeaders: ['Set-Cookie']
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
 // ปรับ Session configuration

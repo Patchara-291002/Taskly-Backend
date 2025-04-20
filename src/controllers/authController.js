@@ -202,7 +202,8 @@ exports.lineLogin = (req, res) => {
     client_id: process.env.LINE_LOGIN_CHANNEL_ID,
     redirect_uri: process.env.LINE_CALLBACK_URL,
     state: state,
-    scope: 'profile openid'
+    scope: 'profile openid',
+    bot_prompt: 'aggressive' 
   });
 
   const clientState = { appState: state, returnTo: '/home/dashboard' };
