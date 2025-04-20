@@ -6,8 +6,8 @@ const assignmentSchema = new mongoose.Schema(
     description: { type: String },
     status: { 
       type: String,
-      enum: ['Todo', 'Doing', 'Done'],
-      default: 'Todo'
+      enum: ['Not started', 'Inprogress', 'Complete'],
+      default: 'Not started'
     },
     startDate: { type: Date },
     endDate: { type: Date },
