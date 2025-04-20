@@ -27,9 +27,9 @@ exports.createProject = async (req, res) => {
 
         // ✅ กำหนดสถานะเริ่มต้นของโปรเจค
         const statusData = [
-            { statusName: "Not start", color: "#5F5F5F", position: 1, isDone: false },
+            { statusName: "Not started", color: "#5F5F5F", position: 1, isDone: false },
             { statusName: "In progress", color: "#1F86FF", position: 2, isDone: false },
-            { statusName: "Complete", color: "#18A900", position: 3, isDone: true }
+            { statusName: "Completed", color: "#18A900", position: 3, isDone: true }
         ];
 
         // ✅ สร้าง Status ในฐานข้อมูล

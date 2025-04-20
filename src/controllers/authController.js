@@ -209,8 +209,6 @@ exports.lineLogin = (req, res) => {
   const clientState = { appState: state, returnTo: '/home/dashboard' };
   const encodedClientState = Buffer.from(JSON.stringify(clientState)).toString('base64');
 
-  params.append('bot_prompt', 'normal');
-
   const lineLoginUrl = `https://access.line.me/oauth2/v2.1/authorize?${params.toString()}`;
   console.log('Generated LINE login URL with state:', state);
   res.redirect(lineLoginUrl);

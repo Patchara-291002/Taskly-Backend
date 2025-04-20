@@ -64,7 +64,8 @@ class ProjectTaskNotifier {
             const thaiDate = new Intl.DateTimeFormat('th-TH', {
                 year: 'numeric',
                 month: 'long',
-                day: 'numeric'
+                day: 'numeric',
+                timeZone: 'Asia/Bangkok' 
             }).format(dueDate);
 
             for (const user of usersWithRole) {
