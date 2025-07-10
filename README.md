@@ -1,3 +1,8 @@
+⚙️ Environment Variables
+
+Create a `.env` file in the root directory with the following variables:
+
+```bash
 # Server
 PORT=3000
 NODE_ENV=development
@@ -24,3 +29,4 @@ LINE_CALLBACK_URL=http://localhost:3000/auth/line/callback
 # LINE Messaging API
 LINE_CHANNEL_ACCESS_TOKEN=your-line-channel-access-token
 LINE_CHANNEL_SECRET=your-line-channel-secret
+```
